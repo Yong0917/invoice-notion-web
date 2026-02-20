@@ -48,6 +48,11 @@ export function MobileNav() {
             </Link>
           ))}
         </nav>
+        <div className="mt-4 border-t pt-4">
+          <Button asChild className="w-full">
+            <Link href="/login" onClick={() => setOpen(false)}>로그인</Link>
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   )

@@ -51,6 +51,9 @@ export function Header() {
               </Link>
             </Button>
           )}
+          <Button asChild size="sm" className="hidden md:flex">
+            <Link href="/login">로그인</Link>
+          </Button>
           <ThemeToggle />
           <MobileNav />
         </div>
