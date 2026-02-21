@@ -11,6 +11,8 @@ export function useMediaQuery(query: string): boolean {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(query)
+    // window.matchMedia API(외부 시스템)와 동기화하는 의도적 패턴
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMatches(mediaQuery.matches)
 
     const handler = (event: MediaQueryListEvent) => {

@@ -17,6 +17,8 @@ export function useLocalStorage<T>(
     try {
       const item = window.localStorage.getItem(key)
       if (item !== null) {
+        // localStorage(외부 시스템)와 초기 상태 동기화하는 의도적 패턴
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setStoredValue(JSON.parse(item) as T)
       }
     } catch (error) {

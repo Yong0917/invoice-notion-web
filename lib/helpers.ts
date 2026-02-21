@@ -22,6 +22,14 @@ export function formatNumber(num: number, locale = 'ko-KR'): string {
   return new Intl.NumberFormat(locale).format(num)
 }
 
+export function formatKRW(amount: number): string {
+  return new Intl.NumberFormat('ko-KR', {
+    style: 'currency',
+    currency: 'KRW',
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
 // ─── URL 유틸리티 ─────────────────────────────────────────────────────
 export function isExternalUrl(url: string): boolean {
   return /^https?:\/\//.test(url)

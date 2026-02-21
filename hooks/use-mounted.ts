@@ -10,6 +10,8 @@ export function useMounted(): boolean {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    // 외부 시스템(DOM)의 마운트 상태와 동기화하는 의도적 패턴
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
   }, [])
 
