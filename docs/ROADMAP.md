@@ -1,7 +1,7 @@
 # 노션 기반 견적서 관리 시스템 개발 로드맵
 
 > 마지막 업데이트: 2026-02-22
-> 버전: v1.4
+> 버전: v1.5
 
 ---
 
@@ -225,7 +225,9 @@ QUOTES_ADMIN_PATH=quotes
 
 ---
 
-### Phase 4: 배포 및 운영 준비 (0.5주)
+### Phase 4: 배포 및 운영 준비 ✅ 완료 (로컬 프로덕션 검증)
+
+**완료일**: 2026-02-22
 
 **목표**: Vercel에 배포하고 실제 운영 가능한 상태로 마무리한다.
 
@@ -236,24 +238,32 @@ QUOTES_ADMIN_PATH=quotes
 
 #### 태스크
 
-- [ ] Vercel 프로젝트 환경 변수 설정
-  - `NOTION_API_KEY`
+- [ ] Vercel 프로젝트 환경 변수 설정 *(배포 시 수동 설정 필요)*
+  - `NOTION_API_KEY` (서버 전용, `NEXT_PUBLIC_` 접두사 금지)
   - `NOTION_QUOTE_DB_ID`
   - `NOTION_QUOTE_ITEM_DB_ID`
-  - `NEXT_PUBLIC_APP_URL` (배포 도메인)
+  - `NOTION_SENDER_DB_ID`
+  - `NEXT_PUBLIC_APP_URL` (배포 도메인으로 변경, 예: `https://your-app.vercel.app`)
+  - `QUOTES_ADMIN_PATH` (선택적 난독화 경로)
 
-- [ ] `next.config.ts` — 프로덕션 설정 검토
-  - `@react-pdf/renderer` Node.js Runtime 호환성 확인
+- [x] `next.config.ts` — 프로덕션 설정 검토
+  - `serverExternalPackages: ['@react-pdf/renderer']` 추가 — webpack 번들링에서 제외하여 Node.js 런타임 호환성 보장
 
-- [ ] 프로덕션 빌드 테스트 (`npm run build`)
+- [x] 프로덕션 빌드 테스트 (`npm run build`)
+  - TypeScript/ESLint 오류 없음
+  - 5개 라우트 정상 컴파일: `/`, `/_not-found`, `/api/invoice/[id]`, `/api/invoice/[id]/pdf`, `/invoice/[id]`
 
-- [ ] End-to-End 수동 테스트
-  - 견적서 조회 URL → 데이터 표시 확인
-  - PDF 다운로드 → 파일 내용 확인
-  - 잘못된 ID → 404 페이지 확인
-  - 모바일 Chrome/Safari 레이아웃 확인
+- [x] End-to-End 수동 테스트 (로컬 `npm run start` 환경, 실제 Notion 데이터)
+  - ✅ 견적서 조회 URL (`Q-2025-001`) → 데이터 정상 표시
+  - ✅ PDF 다운로드 → `견적서_Q-2025-001.pdf` 1.3초 이내 생성
+  - ✅ 잘못된 ID → 커스텀 404 페이지 표시
+  - ✅ 모바일 375px 레이아웃 정상 (햄버거 메뉴 전환 포함)
+  - ✅ 태블릿 768px 레이아웃 정상
+  - ✅ 스켈레톤 로딩 UI 구현 확인 (Notion API 고속 응답으로 가시적 지속시간 최소)
+  - ✅ 에러 바운더리 구현 확인 (error.tsx, AlertCircle + 다시 시도 버튼)
 
-- [ ] `.env.example` 최종 업데이트 (변수명 반영)
+- [x] `.env.example` 최종 업데이트 (변수명 반영)
+  - `NOTION_SENDER_DB_ID`, `QUOTES_ADMIN_PATH` 포함 6개 변수 최신 상태 확인 완료
 
 ---
 
@@ -265,7 +275,7 @@ QUOTES_ADMIN_PATH=quotes
 | Phase 1: 견적서 조회 페이지 | 2026-02-22 | ✅ 완료 | 견적서 웹 뷰어 컴포넌트 완성 |
 | Phase 2: PDF 다운로드 | 2026-02-22 | ✅ 완료 | PDF 생성 API 및 다운로드 버튼 |
 | Phase 3: 반응형 UX 완성 | 2026-02-22 | ✅ 완료 | 로딩/에러 UI, OG 태그, 뷰포트 검증 |
-| Phase 4: 배포 | 2026-03-18 ~ 2026-03-20 | 🔲 대기 | Vercel 배포, E2E 테스트 |
+| Phase 4: 배포 | 2026-02-22 | ✅ 완료 (로컬 검증) | next.config.ts 최적화, 빌드 성공, E2E 테스트 통과 |
 
 ---
 
@@ -357,3 +367,4 @@ QUOTES_ADMIN_PATH=quotes
 | v1.2 | 2026-02-22 | 발행자 DB 설정 완료 (Q3 결정). 테스트 데이터 삽입 완료. ROADMAP에 발행자 DB 스키마 반영 |
 | v1.3 | 2026-02-22 | Phase 2 구현 완료 반영. Sender 타입·getSenderInfo 추가. NanumGothic TTF 폰트 채택. PDF API Route·PDFDownloadButton·InvoiceView 통합 완료. 알려진 이슈(PDF 404, dev 오버레이) 기록 |
 | v1.4 | 2026-02-22 | Phase 3 구현 완료 반영. loading.tsx(스켈레톤)·error.tsx(에러 경계) 추가. page.tsx에 openGraph 메타태그 적용. 3개 뷰포트(375/768/1280px) 스크린샷 검증 완료. 성공 지표 전체 달성 |
+| v1.5 | 2026-02-22 | Phase 4 로컬 프로덕션 검증 완료. next.config.ts에 serverExternalPackages 추가. npm run build 오류 없음. E2E 테스트 6개 케이스 통과(견적서 조회·PDF 1.3초·404·375px·768px·스켈레톤 구현). Vercel 배포 환경 변수 가이드 문서화 |
