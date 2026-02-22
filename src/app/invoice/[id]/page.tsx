@@ -16,8 +16,24 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { id } = await params
   const invoice = await getInvoiceById(id)
+
+  // OG 제목 및 설명 — invoice 존재 여부에 따라 분기
+  const title = invoice ? `견적서 ${invoice.invoice_number}` : '견적서'
+  const description = invoice
+    ? `${invoice.client_name} 앞 견적서입니다.`
+    : '견적서를 확인하세요.'
+
   return {
-    title: invoice ? `견적서 ${invoice.invoice_number}` : '견적서',
+    title,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      // invoice가 있을 때만 정규 URL을 명시합니다.
+      ...(invoice && {
+        url: `${process.env.NEXT_PUBLIC_APP_URL}/invoice/${id}`,
+      }),
+    },
   }
 }
 
