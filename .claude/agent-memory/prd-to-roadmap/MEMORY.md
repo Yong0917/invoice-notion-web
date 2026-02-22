@@ -8,34 +8,59 @@
 - **배포**: Vercel / 패키지 관리: npm
 - **앱 라우터 루트**: `src/app/` (CLAUDE.md의 `app/` 과 다름 - 실제 코드는 `src/app/`)
 
-## 현재 구현 상태 (2026-02-21)
+## 로드맵 파일 구조
 
-스캐폴딩 완료, 실제 로직 미구현:
-- `lib/notion.ts` - 함수 시그니처만 존재, `@notionhq/client` 미설치
-- `src/app/invoice/[id]/page.tsx` - 라우트 구조만 완성
-- `src/app/api/invoice/[id]/route.ts` - 501 응답 반환 중
-- `types/invoice.ts` - `Invoice`, `InvoiceItem` 타입 완성
-- `src/app/page.tsx` - 서비스 소개 홈페이지 완성
+- `docs/ROADMAP.md` — 고도화 로드맵 (Phase 5~7), v2.0 기준 (2026-02-22 작성)
+- `docs/roadmaps/ROADMAP_v1.md` — MVP 로드맵 (Phase 0~4), v1.5 완료 기준
+- `docs/PRD.md` — 원본 제품 요구사항 문서
 
-## PRD 분석 시 발견한 누락 사항 (자주 확인할 것)
+## MVP 완료 상태 (2026-02-22, Phase 0~4 전체 완료)
 
-1. **발행자 정보**: PRD 데이터 모델에 발행자(회사명, 사업자번호 등) 필드 없음
-2. **부가세 처리**: `total_amount`가 부가세 포함/제외 여부 불명확
-3. **Items DB 구조**: Notion Relation vs 하위 블록 여부 확인 필요
-4. **거절 상태 견적서**: 접근 허용 여부 정책 미정
+핵심 파일:
+- `lib/notion.ts` — Notion 클라이언트, `getInvoiceById()`, `getSenderInfo()`, `getInvoiceList()`
+- `src/app/invoice/[id]/page.tsx` — 견적서 조회 페이지
+- `src/app/api/invoice/[id]/route.ts` — GET API
+- `src/app/api/invoice/[id]/pdf/route.tsx` — PDF 생성 API (runtime: nodejs)
+- `components/invoice/` — InvoiceView, InvoiceHeader, InvoiceItemsTable, InvoiceSummary, InvoicePDF, PDFDownloadButton
+- `types/invoice.ts` — Invoice, InvoiceItem, Sender 타입
 
-## 로드맵 구조 패턴 (이 프로젝트에 적합)
+## 노션 데이터베이스 구조 (확정)
 
-- Phase 0: 외부 API 연동 기반 (Notion SDK 설치 및 데이터 레이어)
-- Phase 1: 핵심 UI (견적서 조회 컴포넌트)
-- Phase 2: 핵심 기능 (PDF 생성)
-- Phase 3: 반응형 및 UX 완성
-- Phase 4: 배포 및 E2E 테스트
-- 총 약 4주 예상 (1인 개발 기준)
+- 발행자 DB (`NOTION_SENDER_DB_ID`): 회사명, 대표자명, 사업자등록번호, 주소, 전화번호, 이메일, 은행명, 계좌번호, 예금주
+- 견적서 DB (`NOTION_QUOTE_DB_ID`): 이름(견적번호), 고객명, 발행일, 유효기간, 합계금액, 상태(select), 항목(relation)
+- 견적 항목 DB (`NOTION_QUOTE_ITEM_DB_ID`): 이름(항목명), 수량, 단가, 공급가액(formula), 견적서(relation)
+
+## Phase별 로드맵 패턴 (확정)
+
+- Phase 0~4: MVP 완료 (2026-02-22)
+- Phase 5: 관리 기능 (NextAuth.js v5, Notion PATCH API) — 3주
+- Phase 6: 자동화 (Resend, Vercel Cron Jobs) — 3주
+- Phase 7: 고급 기능 — 분할 착수 권장
+  - 7-a 다중 PDF 템플릿 (1~2주), 7-b 전자 서명 (2~3주), 7-c 버전 관리 (2주), 7-d 다국어 (2주)
 
 ## 기술적 주의사항
 
 - `@react-pdf/renderer`는 Vercel Edge Runtime 미지원 → `export const runtime = 'nodejs'` 필수
-- 한국어 PDF는 폰트 직접 등록 필요 (Noto Sans KR 등)
+- `next.config.ts`에 `serverExternalPackages: ['@react-pdf/renderer']` 설정됨
+- 한국어 PDF: NanumGothic TTF (`public/fonts/NanumGothic-Regular.ttf`, `NanumGothic-Bold.ttf`) 사용
 - `NOTION_API_KEY`는 서버 전용 환경 변수 (NEXT_PUBLIC_ 금지)
-- Next.js 라우트 `params`는 `Promise<{id: string}>` 타입 (Next.js 15+)
+- Next.js 15+ 라우트 `params`는 `Promise<{id: string}>` 타입
+- `@notionhq/client` v2 고정 (v5는 `databases.query()` 미지원)
+
+## 고도화 설계 시 핵심 결정 사항
+
+- Notion 텍스트 검색 미지원 → 전체 목록 로드 후 클라이언트 필터링
+- Vercel Cron Job Hobby 플랜: 1일 1개 Cron 제한 → D-3, D-1 알림을 단일 핸들러에서 처리
+- Phase 6 Resend 도메인 DNS 인증: 24~48시간 전파 대기 시간 일정에 반영 필요
+- Phase 7 다국어(next-intl)는 middleware.ts 수정을 요구하므로 NextAuth.js와 충돌 가능 → 마지막 착수 권장
+- 전자 서명: 자체 캔버스 구현은 법적 구속력 없음. 착수 전 법적 효력 요건 결정 필수
+- Notion 페이지 복사 API 없음 → `pages.create()`로 프로퍼티 수동 복사
+
+## 미결 보류 사항 (Q7~Q12)
+
+- Q7: 전자 서명 법적 효력 요건 (자체 vs 공인 서비스)
+- Q8: 서명 이미지 저장소 (Vercel Blob vs Cloudflare R2 vs Notion 파일)
+- Q9: 다국어 지원 언어 범위
+- Q10: 웹 UI에서 견적서 신규 생성 기능 필요 여부
+- Q11: Vercel Pro 플랜 필요 여부
+- Q12: 거절된 견적서 클라이언트 열람 허용 여부 (MVP에서 이월)
