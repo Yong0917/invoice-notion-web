@@ -1,326 +1,479 @@
-# 노션 기반 견적서 관리 시스템 개발 로드맵
+# 노션 기반 견적서 관리 시스템 고도화 로드맵
 
 > 마지막 업데이트: 2026-02-22
-> 버전: v1.5
+> 버전: v2.0
+> 기준 문서: docs/roadmaps/ROADMAP_v1.md (MVP 완료 기준)
 
 ---
 
 ## 프로젝트 개요
 
-노션 데이터베이스를 백엔드로 활용하여 프리랜서/소규모 기업이 견적서를 관리하고, 클라이언트가 고유 URL로 접속하여 견적서를 웹에서 조회하고 PDF로 다운로드할 수 있는 경량 시스템이다. 별도의 데이터베이스나 관리자 시스템 없이 노션을 그대로 CMS로 활용하는 것이 핵심이다.
+노션 데이터베이스를 백엔드로 활용하여 프리랜서/소규모 기업이 견적서를 관리하고, 클라이언트가 고유 URL로 접속하여 견적서를 웹에서 조회하고 PDF로 다운로드할 수 있는 경량 시스템이다.
+
+MVP(Phase 0~4) 완료를 기준으로, 본 문서는 관리 기능, 자동화, 고급 기능 순으로 단계적 고도화 계획을 정의한다.
 
 ---
 
-## 성공 지표 (MVP 기준)
+## MVP 완료 현황 (Phase 0~4)
 
-- [x] 잘못된 `notionPageId` 접근 시 커스텀 404 페이지 표시
-- [x] 노션 데이터베이스에서 견적서 데이터 정상 조회
-- [x] `/invoice/[notionPageId]` 경로로 접근 시 견적서 웹 렌더링 정상 동작
-- [x] PDF 다운로드 버튼 클릭 시 10초 이내 PDF 파일 생성 및 다운로드
-- [x] 모바일(375px), 태블릿(768px), 데스크톱(1280px) 3가지 뷰포트에서 레이아웃 정상 표시
+| Phase | 내용 | 완료일 | 주요 산출물 |
+|-------|------|--------|-------------|
+| Phase 0 | 환경 설정 및 Notion 연동 기반 구축 | 2026-02-22 | `lib/notion.ts`, `@notionhq/client@2` 설치, 환경 변수 확정 |
+| Phase 1 | 견적서 조회 페이지 구현 | 2026-02-22 | `InvoiceView`, `InvoiceHeader`, `InvoiceItemsTable`, `InvoiceSummary` |
+| Phase 2 | PDF 다운로드 구현 | 2026-02-22 | `InvoicePDF`, `PDFDownloadButton`, `/api/invoice/[id]/pdf` |
+| Phase 3 | 반응형 레이아웃 및 UX 완성 | 2026-02-22 | `loading.tsx`, `error.tsx`, OG 메타태그, 375/768/1280px 검증 |
+| Phase 4 | 배포 및 운영 준비 | 2026-02-22 | `next.config.ts` 최적화, 프로덕션 빌드, E2E 테스트 통과 |
 
----
+### 현재 라우트 구조
 
-## 기술 스택
+```
+src/app/
+├── page.tsx                          # 홈 (서비스 소개)
+├── invoice/
+│   └── [id]/
+│       ├── page.tsx                  # 견적서 조회 페이지
+│       ├── loading.tsx               # 스켈레톤 UI
+│       ├── error.tsx                 # 에러 경계
+│       └── not-found.tsx             # 커스텀 404
+└── api/
+    └── invoice/
+        └── [id]/
+            ├── route.ts              # GET /api/invoice/[id]
+            └── pdf/
+                └── route.tsx         # GET /api/invoice/[id]/pdf
+```
 
-| 영역 | 기술 | 버전 | 선택 이유 |
-|------|------|------|-----------|
-| 프레임워크 | Next.js (App Router) | 16.1.6 | 서버 컴포넌트로 Notion API 직접 호출 가능, Vercel 최적화 |
-| 언어 | TypeScript | 5.x | 타입 안전성, Notion API 응답 타입 매핑에 필수 |
-| UI 라이브러리 | React | 19.2.3 | Next.js 의존성 |
-| 스타일링 | TailwindCSS | v4 | CSS-first 방식, `app/globals.css` 단일 파일 관리 |
-| 컴포넌트 | shadcn/ui | latest | 이미 프로젝트에 설치됨, 직접 수정 가능 |
-| 아이콘 | Lucide React | 0.575.0 | 이미 프로젝트에 설치됨 |
-| Notion SDK | @notionhq/client | **v2** (v5 사용 불가 — 아래 주의사항 참고) | 공식 SDK, 타입 지원 |
-| PDF 생성 | @react-pdf/renderer | latest | React 컴포넌트 기반 PDF 생성, 서버/클라이언트 모두 지원 |
-| 배포 | Vercel | - | Next.js 최적화, 환경 변수 관리 용이 |
-| 패키지 관리 | npm | - | 프로젝트 기본 설정 |
-
-> **⚠️ @notionhq/client 버전 주의**: v5에서 `databases.query()` 메서드가 제거됨.
-> 반드시 v2를 유지해야 한다. (`npm install @notionhq/client@2`)
-
----
-
-## 노션 데이터베이스 설정 (완료)
-
-### 발행자 DB (`NOTION_SENDER_DB_ID`)
-
-| 속성명 | 타입 | 매핑 필드 |
-|--------|------|-----------|
-| 이름 | title | 식별용 레이블 |
-| 회사명 | rich_text | `company_name` |
-| 대표자명 | rich_text | `representative` |
-| 사업자등록번호 | rich_text | `business_number` |
-| 주소 | rich_text | `address` |
-| 전화번호 | rich_text | `phone` |
-| 이메일 | email | `email` |
-| 은행명 | rich_text | `bank_name` |
-| 계좌번호 | rich_text | `account_number` |
-| 예금주 | rich_text | `account_holder` |
-
-> DB 첫 번째 행을 항상 발행자로 사용 (단일 발행자 고정 방식)
-> 테스트 데이터 페이지 ID: `30ff71b03408810daacec8fdddbcacf8`
-
-### 견적서 DB (`NOTION_QUOTE_DB_ID`)
-
-| 속성명 | 타입 | 매핑 필드 |
-|--------|------|-----------|
-| 이름 | title | `invoice_number` |
-| 고객명 | rich_text | `client_name` |
-| 발행일 | date | `issue_date` |
-| 유효기간 | date | `valid_until` |
-| 합계금액 | number (원) | `total_amount` |
-| 상태 | select (pending/approved/rejected) | `status` |
-| 항목 | relation → 견적 항목 DB | — |
-
-### 견적 항목 DB (`NOTION_QUOTE_ITEM_DB_ID`)
-
-| 속성명 | 타입 | 매핑 필드 |
-|--------|------|-----------|
-| 이름 | title | `description` |
-| 수량 | number | `quantity` |
-| 단가 | number (원) | `unit_price` |
-| 공급가액 | formula (`수량 * 단가`) | `amount` |
-| 견적서 | relation → 견적서 DB | — |
-
----
-
-## 환경 변수
+### 현재 환경 변수
 
 ```env
 NOTION_API_KEY=...
-NOTION_QUOTE_DB_ID=30ff71b0340880fe9b5bf8d7a8a7f375
-NOTION_QUOTE_ITEM_DB_ID=30ff71b034088056967cfc65b402f2c1
-NOTION_SENDER_DB_ID=30ff71b03408800aa7b6e145c1793419
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NOTION_QUOTE_DB_ID=...
+NOTION_QUOTE_ITEM_DB_ID=...
+NOTION_SENDER_DB_ID=...
+NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 QUOTES_ADMIN_PATH=quotes
 ```
 
 ---
 
-## 개발 로드맵
+## 성공 지표 (고도화 목표)
 
-### Phase 0: 환경 설정 및 Notion 연동 기반 구축 ✅ 완료
-
-**완료일**: 2026-02-22
-
-#### 태스크
-
-- [x] `@notionhq/client@2` 패키지 설치
-- [x] `.env.local` 파일 생성 및 환경 변수 설정
-  - `NOTION_QUOTE_DB_ID`, `NOTION_QUOTE_ITEM_DB_ID` 변수명 확정 (기존 `NOTION_DATABASE_ID`에서 변경)
-- [x] Notion Integration 생성 및 두 DB에 권한 연결
-- [x] `lib/notion.ts` — Notion 클라이언트 싱글톤 초기화
-- [x] `lib/notion.ts` — `getInvoiceById()` 구현
-  - `pages.retrieve()` + `databases.query()` (relation 필터링) 조합
-  - `object_not_found` 에러 → `null` 반환 처리
-- [x] `lib/notion.ts` — `getInvoiceList()` 구현 (발행일 내림차순)
-- [x] `types/invoice.ts` — `PageObjectResponse` 기반 타입 추출 헬퍼 구현
-- [x] TypeScript 타입 오류 없이 빌드 성공 (`npm run build` 통과)
-- [x] 노션에 테스트 데이터 2건 삽입 (Q-2025-001, Q-2025-002)
+- [ ] 관리자가 웹 UI에서 견적서 목록 조회, 상태 변경, 검색이 가능하다
+- [ ] 견적서 발행 시 클라이언트에게 이메일이 자동으로 발송된다
+- [ ] 유효기간 만료 D-3, D-1 시점에 알림 이메일이 자동 발송된다
+- [ ] 클라이언트가 견적서를 열람했는지 관리자가 확인할 수 있다
+- [ ] 관리자가 여러 PDF 레이아웃 중 하나를 선택할 수 있다
 
 ---
 
-### Phase 1: 견적서 조회 페이지 구현 ✅ 완료
+## 기술 스택 (현재 + 예정)
 
-**완료일**: 2026-02-22 (MVP 선구현 포함)
-
-#### 태스크
-
-- [x] `src/app/api/invoice/[id]/route.ts` — GET 핸들러 (404/500 처리 포함)
-- [x] `components/invoice/InvoiceHeader.tsx` — 견적서 번호, 상태 배지, 수신/발행일/유효기간
-- [x] `components/invoice/InvoiceItemsTable.tsx` — 항목 테이블, 모바일 가로 스크롤
-- [x] `components/invoice/InvoiceSummary.tsx` — 공급가액 / 부가세(10%) / 합계금액
-- [x] `components/invoice/InvoiceView.tsx` — 위 컴포넌트 통합
-- [x] `src/app/invoice/[id]/page.tsx` — `getInvoiceById()` 연결, `generateMetadata` 적용
-- [x] `src/app/invoice/[id]/not-found.tsx` — 커스텀 404 페이지
-- [x] `lib/helpers.ts` — `formatKRW()`, `formatDate()` 구현
-
-**테스트 URL**:
-```
-/invoice/30ff71b03408816c9975ca05fa14818c   # Q-2025-001 (pending)
-/invoice/30ff71b03408812b8f05f938f82a451b   # Q-2025-002 (approved)
-```
+| 영역 | 현재 기술 | 추가 예정 기술 | 추가 Phase |
+|------|-----------|---------------|------------|
+| 프레임워크 | Next.js 16.1.6 (App Router) | — | — |
+| 인증 | 없음 | NextAuth.js v5 | Phase 5 |
+| 이메일 | 없음 | Resend | Phase 6 |
+| 스케줄러 | 없음 | Vercel Cron Jobs | Phase 6 |
+| 전자 서명 | 없음 | 미결 (DocuSign / 자체 구현) | Phase 7 |
+| 다국어 | 없음 | next-intl | Phase 7 |
+| 패키지 관리 | npm | — | — |
 
 ---
 
-### Phase 2: PDF 다운로드 구현 ✅ 완료
+## 고도화 로드맵
 
-**목표**: PDF 다운로드 버튼 클릭 시 견적서가 PDF 파일로 즉시 다운로드된다.
+---
+
+### Phase 5: 관리 기능 (예상 3주)
+
+**목표**: 관리자가 웹 UI에서 견적서를 관리할 수 있다. Notion 앱에 들어가지 않고도 상태 변경, 검색, 목록 조회가 가능하다.
 
 **완료 기준**:
-- PDF 다운로드 버튼 클릭 시 10초 이내 PDF 생성 완료
-- 생성된 PDF에 견적서 번호, 항목, 금액이 정확하게 표시됨
-- PDF 파일명: `견적서_[invoice_number].pdf`
-- 다운로드 중 로딩 상태 표시
+- 관리자 로그인 성공 시 `/admin` 대시보드 접근 가능
+- 비로그인 상태에서 `/admin` 접근 시 로그인 페이지로 리다이렉트
+- 견적서 목록에서 상태 필터(전체/대기중/승인/거절) 및 날짜 범위 필터 동작
+- 견적서 상태 변경(승인/거절) 후 Notion DB에 반영 확인
+- 견적서 번호 또는 고객명으로 검색 동작
+
+#### 신규 환경 변수
+
+```env
+# 관리자 계정 (NextAuth Credentials Provider)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD_HASH=...        # bcrypt 해시값
+
+# NextAuth 세션 암호화 키 (32자 이상 랜덤 문자열)
+AUTH_SECRET=...
+```
+
+#### 신규 패키지 의존성
+
+```bash
+npm install next-auth@beta      # NextAuth.js v5 (App Router 지원)
+npm install bcryptjs            # 패스워드 해시 비교
+npm install @types/bcryptjs -D
+```
+
+> 주의: NextAuth.js v5는 App Router 전용 API를 사용한다. `auth.ts` 파일을 프로젝트 루트에 생성한다.
+
+#### 데이터 모델 변경사항
+
+- Notion DB 변경 없음. 상태 변경은 기존 `status` select 프로퍼티를 PATCH API로 업데이트한다.
+- `lib/notion.ts`에 `updateInvoiceStatus(pageId, status)` 함수 추가.
+- `lib/notion.ts`에 `searchInvoices(query, dateRange)` 함수 추가.
 
 #### 태스크
 
-- [x] `@react-pdf/renderer` 패키지 설치
-  - `npm install @react-pdf/renderer` 완료
+**5-1. NextAuth.js 인증 기반 구축**
 
-- [x] PDF 폰트 설정 및 한국어 깨짐 방지
-  - `public/fonts/NanumGothic-Regular.ttf`, `NanumGothic-Bold.ttf` 배치
-  - Noto Sans KR 대신 **NanumGothic TTF** 사용 (woff 미지원, 단일 파일 구조)
-  - `Font.register()` 로 폰트 등록 완료
+- [ ] `npm install next-auth@beta bcryptjs @types/bcryptjs` 패키지 설치 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+- [ ] `auth.ts` (프로젝트 루트) — NextAuth 설정 파일 생성 | 담당: 풀스택 | 예상: 1d | 우선순위: 빨강
+  - Credentials Provider 설정 (이메일 + 비밀번호)
+  - `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` 환경 변수로 단일 관리자 계정 검증
+  - `bcryptjs.compare()` 로 패스워드 해시 비교
+  - JWT 세션 전략 사용 (`strategy: 'jwt'`)
+- [ ] `src/app/api/auth/[...nextauth]/route.ts` — NextAuth App Router 핸들러 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+- [ ] `middleware.ts` (프로젝트 루트) — `/admin/**` 경로 인증 미들웨어 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+  - 미인증 시 `/login`으로 리다이렉트
+  - `/login` 페이지는 보호 대상에서 제외
+- [ ] `src/app/login/page.tsx` — 로그인 페이지 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - 이메일 + 비밀번호 폼 (shadcn/ui `Input`, `Button`)
+  - 로그인 실패 시 에러 메시지 표시
+  - 로그인 성공 시 `/admin`으로 리다이렉트
+- [ ] `.env.local` 및 `.env.example`에 `AUTH_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` 추가 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
 
-- [x] `types/invoice.ts` — `Sender` 인터페이스 추가
-  - 발행자 정보 (회사명, 대표자, 사업자번호, 주소, 연락처, 계좌정보)
+**5-2. 관리자 레이아웃 및 대시보드**
 
-- [x] `lib/notion.ts` — `getSenderInfo()` 구현
-  - `NOTION_SENDER_DB_ID` DB 첫 번째 행을 발행자 정보로 조회
-  - `extractEmail()`, `mapToSender()` 헬퍼 추가
-  - `validation_error`, `invalid_request_url`, `unauthorized` 에러 코드 추가 처리 (커스텀 404 트리거)
+- [ ] `src/app/admin/layout.tsx` — 관리자 레이아웃 (사이드바 또는 탑바) | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - 로그아웃 버튼 (`signOut()` 호출)
+  - 현재 관리자 이메일 표시
+- [ ] `src/app/admin/page.tsx` — 견적서 목록 대시보드 | 담당: 풀스택 | 예상: 2d | 우선순위: 빨강
+  - `getInvoiceList()` 서버 컴포넌트 호출
+  - 상태 요약 카드 (전체/대기중/승인/거절 건수)
+  - 최근 발행 견적서 5건 미리보기
 
-- [x] `components/invoice/InvoicePDF.tsx` — PDF 템플릿 컴포넌트
-  - A4 레이아웃: 제목 → 발행일/견적번호 → 발행자+수신자 박스 → 항목 테이블 → 합계(공급가액/부가세/합계금액) → 계좌정보
-  - `Invoice` + `Sender` props 수신
+**5-3. 견적서 목록 및 필터링**
 
-- [x] `src/app/api/invoice/[id]/pdf/route.tsx` — PDF 생성 API
-  - `export const runtime = 'nodejs'` 선언
-  - `Promise.all([getInvoiceById, getSenderInfo])` 병렬 조회
-  - `renderToBuffer()` → `Uint8Array` 변환 → Response 반환
-  - RFC 5987 파일명 인코딩 (`filename*=UTF-8''...`)
-  - 404 / 500 에러 처리
+- [ ] `components/admin/InvoiceListTable.tsx` — 견적서 목록 테이블 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 빨강
+  - 컬럼: 견적번호, 고객명, 발행일, 유효기간, 합계금액, 상태, 액션(상세/상태변경)
+  - shadcn/ui `Table` 컴포넌트 활용
+  - 견적서 번호 클릭 시 `/invoice/[id]` 새 탭으로 이동
+- [ ] `components/admin/InvoiceFilters.tsx` — 검색 및 필터 UI | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
+  - 고객명/견적번호 텍스트 검색 인풋
+  - 상태 필터 탭 (전체 / 대기중 / 승인 / 거절)
+  - 발행일 날짜 범위 피커 (shadcn/ui `Calendar` + `Popover`)
+  - URL 쿼리 파라미터(`?status=&q=&from=&to=`)로 필터 상태 동기화
+- [ ] `lib/notion.ts` — `searchInvoices(params)` 함수 추가 | 담당: 백엔드 | 예상: 1d | 우선순위: 노랑
+  - Notion `databases.query()` filter 조합 (status select + 날짜 범위)
+  - 텍스트 검색은 Notion API가 미지원이므로 `getInvoiceList()` 결과를 클라이언트에서 필터링
 
-- [x] `components/invoice/PDFDownloadButton.tsx` — 다운로드 버튼
-  - `'use client'`, `fetch → blob → URL.createObjectURL → click → revokeObjectURL`
-  - 로딩 중 Loader2 스피너 + 버튼 비활성화
+**5-4. 견적서 상태 변경**
 
-- [x] `InvoiceView.tsx` 에 `PDFDownloadButton` 통합 (`print:hidden`)
-
-#### 알려진 이슈
-
-- **dev mode 오버레이**: Next.js 16 + Turbopack에서 `notFound()` 호출 시 `Performance.measure` 오류 오버레이 발생 — Turbopack 내부 버그, 프로덕션 무관
+- [ ] `lib/notion.ts` — `updateInvoiceStatus(pageId, status)` 함수 추가 | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+  - `pages.update()` PATCH 호출로 `status` select 프로퍼티 변경
+  - 유효한 상태값(`pending` / `approved` / `rejected`) 검증
+- [ ] `src/app/api/admin/invoice/[id]/status/route.ts` — 상태 변경 API | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+  - PATCH 핸들러 구현
+  - 세션 인증 검증 (`auth()` 호출, 미인증 시 401 반환)
+  - 요청 body에서 `status` 값 추출 및 `updateInvoiceStatus()` 호출
+- [ ] `components/admin/StatusChangeButton.tsx` — 상태 변경 버튼 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - 현재 상태 표시 (배지)
+  - 드롭다운으로 상태 선택 (shadcn/ui `DropdownMenu`)
+  - 변경 중 로딩 상태, 성공/실패 토스트 (sonner)
+  - 낙관적 UI 업데이트 (`useOptimistic`)
 
 ---
 
-### Phase 3: 반응형 레이아웃 및 UX 완성 ✅ 완료
+### Phase 6: 자동화 (예상 3주)
 
-**완료일**: 2026-02-22
-
-**목표**: 모든 디바이스에서 견적서가 올바르게 표시되고, 사용자 경험이 완성된다.
+**목표**: 반복적인 수동 작업(이메일 발송, 만료 알림)을 자동화하여 운영 부담을 줄인다.
 
 **완료 기준**:
-- 375px, 768px, 1280px 뷰포트에서 레이아웃 깨짐 없음
-- 로딩/에러 상태 UI 완성
-- 페이지 메타데이터(OG 태그) 설정 완료
+- 관리자가 견적서 URL을 포함한 이메일을 버튼 클릭 한 번으로 클라이언트에게 발송
+- Vercel Cron Job이 매일 자정에 실행되어 만료 D-3, D-1 견적서 대상 알림 이메일 발송
+- 클라이언트가 견적서 페이지 접근 시 열람 기록(최초 열람 시간)이 Notion에 저장
+
+#### 신규 환경 변수
+
+```env
+# Resend 이메일 API
+RESEND_API_KEY=re_...
+EMAIL_FROM=noreply@yourdomain.com   # Resend에서 인증된 발신자 도메인
+
+# Vercel Cron 보안 토큰 (임의의 긴 문자열)
+CRON_SECRET=...
+```
+
+#### 신규 패키지 의존성
+
+```bash
+npm install resend                  # 이메일 발송 SDK
+```
+
+#### 데이터 모델 변경사항 (Notion DB)
+
+견적서 DB(`NOTION_QUOTE_DB_ID`)에 다음 컬럼 추가:
+
+| 속성명 | 타입 | 매핑 필드 | 설명 |
+|--------|------|-----------|------|
+| 클라이언트 이메일 | email | `client_email` | 이메일 발송 대상 |
+| 열람일시 | date | `viewed_at` | 최초 열람 시간 (ISO 8601) |
+
+`types/invoice.ts`의 `Invoice` 인터페이스에 `client_email`, `viewed_at` 필드 추가.
+`lib/notion.ts`의 `mapToInvoice()` 함수에 신규 필드 매핑 추가.
 
 #### 태스크
 
-- [x] `src/app/invoice/[id]/loading.tsx` — 스켈레톤 로딩 UI
-  - 견적서 레이아웃 형태의 Skeleton
-  - shadcn/ui `Skeleton` 컴포넌트 활용
+**6-1. 이메일 발송 기반 구축**
 
-- [x] `src/app/invoice/[id]/error.tsx` — 에러 경계
-  - Notion API 장애 시 사용자 친화적 메시지 (`AlertCircle` 아이콘)
-  - 새로고침(다시 시도) 버튼
+- [ ] `npm install resend` 패키지 설치 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+- [ ] Resend 계정 생성 및 발신 도메인 인증 (DNS 설정) | 담당: DevOps | 예상: 1d | 우선순위: 빨강
+  - SPF, DKIM 레코드 등록
+  - `RESEND_API_KEY`, `EMAIL_FROM` 환경 변수 설정
+- [ ] `lib/email.ts` — Resend 클라이언트 초기화 및 이메일 발송 헬퍼 | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+  - `sendInvoiceEmail(invoice, recipientEmail)` 함수 구현
+  - `sendExpiryReminderEmail(invoice, recipientEmail, daysLeft)` 함수 구현
 
-- [x] `src/app/invoice/[id]/page.tsx` — OG 메타태그 추가
-  - `generateMetadata()` 에 `openGraph` 속성 추가
-  - 견적서 번호, 클라이언트명 반영, 정규 URL 포함
+**6-2. 견적서 발송 이메일 템플릿**
 
-- [x] 전 뷰포트 레이아웃 검증
-  - 모바일 375px, 태블릿 768px, 데스크톱 1280px (스크린샷 확인 완료)
+- [ ] `components/email/InvoiceEmailTemplate.tsx` — 이메일 HTML 템플릿 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 빨강
+  - React 컴포넌트 기반 HTML 이메일 (Resend의 `render()` 함수 활용)
+  - 견적서 번호, 고객명, 합계금액, 유효기간, 열람 URL 포함
+  - 반응형 이메일 레이아웃 (인라인 스타일 필수)
+- [ ] `components/email/ExpiryReminderEmailTemplate.tsx` — 만료 알림 이메일 템플릿 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
+  - 만료 D-3 / D-1 텍스트 분기 처리
+- [ ] `src/app/api/admin/invoice/[id]/send-email/route.ts` — 이메일 발송 API | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+  - POST 핸들러, 세션 인증 검증
+  - `getInvoiceById()` 호출로 견적서 데이터 조회
+  - `sendInvoiceEmail()` 호출
+  - 발송 성공 시 Notion DB의 `발송일시` 프로퍼티 업데이트 (선택)
+
+**6-3. 관리자 UI에 이메일 발송 버튼 추가**
+
+- [ ] `components/admin/SendEmailButton.tsx` — 이메일 발송 버튼 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
+  - 클라이언트 이메일 미설정 시 버튼 비활성화 + 툴팁 안내
+  - 발송 중 로딩, 성공/실패 토스트
+  - 중복 발송 방지 (확인 다이얼로그, shadcn/ui `AlertDialog`)
+- [ ] `src/app/admin/page.tsx` — `SendEmailButton` 목록 테이블에 통합 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 노랑
+
+**6-4. 유효기간 만료 알림 Cron Job**
+
+- [ ] `src/app/api/cron/expiry-reminder/route.ts` — Cron Job 핸들러 | 담당: 백엔드 | 예상: 2d | 우선순위: 노랑
+  - `Authorization: Bearer ${CRON_SECRET}` 헤더 검증
+  - `getInvoiceList()` 호출 후 `valid_until` 기준 D-3, D-1 필터링
+  - 해당 견적서 클라이언트에게 `sendExpiryReminderEmail()` 호출
+  - 오류 발생 시 개별 건 스킵, 전체 결과 로그 반환
+- [ ] `vercel.json` — Cron Job 설정 | 담당: DevOps | 예상: 0.5d | 우선순위: 노랑
+  ```json
+  {
+    "crons": [
+      {
+        "path": "/api/cron/expiry-reminder",
+        "schedule": "0 0 * * *"
+      }
+    ]
+  }
+  ```
+- [ ] Vercel 대시보드에서 `CRON_SECRET` 환경 변수 설정 | 담당: DevOps | 예상: 0.5d | 우선순위: 노랑
+
+**6-5. 클라이언트 열람 여부 트래킹**
+
+- [ ] `src/app/api/invoice/[id]/view/route.ts` — 열람 기록 API | 담당: 백엔드 | 예상: 1d | 우선순위: 초록
+  - POST 핸들러 (인증 불필요)
+  - Notion DB의 해당 견적서 페이지에 `viewed_at` 날짜 프로퍼티 업데이트
+  - 이미 `viewed_at`이 설정된 경우 무시 (최초 열람만 기록)
+- [ ] `lib/notion.ts` — `markInvoiceViewed(pageId)` 함수 추가 | 담당: 백엔드 | 예상: 0.5d | 우선순위: 초록
+  - `pages.update()` PATCH 호출로 `viewed_at` 날짜 설정
+- [ ] `src/app/invoice/[id]/page.tsx` — 페이지 조회 시 열람 기록 API 호출 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 초록
+  - 서버 컴포넌트에서 `fetch('/api/invoice/[id]/view', { method: 'POST' })` 호출
+  - 비동기로 처리, 실패해도 페이지 렌더링에 영향 없도록 처리
+- [ ] `components/admin/InvoiceListTable.tsx` — 열람 여부 컬럼 추가 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 초록
+  - 열람일시 표시 (미열람 시 "미열람" 배지)
 
 ---
 
-### Phase 4: 배포 및 운영 준비 ✅ 완료 (로컬 프로덕션 검증)
+### Phase 7: 고급 기능 (예상 5~7주)
 
-**완료일**: 2026-02-22
-
-**목표**: Vercel에 배포하고 실제 운영 가능한 상태로 마무리한다.
+**목표**: 다중 PDF 템플릿, 전자 서명, 견적서 버전 관리, 다국어 지원으로 제품 완성도를 높인다.
 
 **완료 기준**:
-- Vercel 환경 변수 설정 완료
-- 프로덕션 빌드 오류 없음
-- 실제 Notion 데이터로 End-to-End 테스트 통과
+- 관리자가 PDF 레이아웃 스타일을 최소 2가지 중 선택 가능
+- 클라이언트가 웹에서 서명 후 Notion에 서명 완료 상태 저장
+- 견적서 수정 시 이전 버전이 이력으로 남아 조회 가능
+- 한국어/영어 전환 버튼이 견적서 조회 페이지에 표시
+
+> 주의: Phase 7의 각 기능은 규모가 크므로, 착수 전 세부 설계 문서를 별도로 작성할 것을 권장한다.
+
+#### 신규 환경 변수 (예상)
+
+```env
+# 다국어 (next-intl)
+NEXT_PUBLIC_DEFAULT_LOCALE=ko
+
+# 전자 서명 — 자체 구현 방식 선택 시 추가 변수 없음
+# 외부 API 방식(DocuSign 등) 선택 시 해당 서비스의 API 키 추가 필요
+```
+
+#### 신규 패키지 의존성 (예상)
+
+```bash
+npm install next-intl               # 다국어 지원
+npm install react-signature-canvas  # 자체 전자 서명 캔버스 (자체 구현 방식)
+```
+
+#### 데이터 모델 변경사항
+
+**견적서 DB에 추가 필요한 컬럼**:
+
+| 속성명 | 타입 | 설명 |
+|--------|------|------|
+| PDF 템플릿 | select | `standard` / `minimal` / `premium` |
+| 서명 이미지 URL | url | 클라이언트 서명 이미지 (외부 스토리지 또는 Notion 파일) |
+| 서명일시 | date | 전자 서명 완료 시간 |
+| 버전 | number | 현재 견적서 버전 번호 |
+| 원본 견적서 | relation | 견적서 수정 시 이전 버전 페이지 연결 |
 
 #### 태스크
 
-- [ ] Vercel 프로젝트 환경 변수 설정 *(배포 시 수동 설정 필요)*
-  - `NOTION_API_KEY` (서버 전용, `NEXT_PUBLIC_` 접두사 금지)
-  - `NOTION_QUOTE_DB_ID`
-  - `NOTION_QUOTE_ITEM_DB_ID`
-  - `NOTION_SENDER_DB_ID`
-  - `NEXT_PUBLIC_APP_URL` (배포 도메인으로 변경, 예: `https://your-app.vercel.app`)
-  - `QUOTES_ADMIN_PATH` (선택적 난독화 경로)
+**7-1. 다중 PDF 템플릿 지원**
 
-- [x] `next.config.ts` — 프로덕션 설정 검토
-  - `serverExternalPackages: ['@react-pdf/renderer']` 추가 — webpack 번들링에서 제외하여 Node.js 런타임 호환성 보장
+- [ ] `components/invoice/InvoicePDFMinimal.tsx` — 미니멀 PDF 템플릿 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 노랑
+  - 현재 `InvoicePDF.tsx`를 기반으로 간소화된 레이아웃 구현
+  - 로고 영역 제거, 단색 배경, 컴팩트한 폰트 크기
+- [ ] `components/invoice/InvoicePDFPremium.tsx` — 프리미엄 PDF 템플릿 | 담당: 프론트엔드 | 예상: 3d | 우선순위: 노랑
+  - 컬러 헤더 배너, 회사 로고 이미지 지원, 정교한 레이아웃
+  - 로고 이미지는 `SENDER_LOGO_URL` 환경 변수로 관리
+- [ ] `components/invoice/InvoicePDFFactory.ts` — PDF 템플릿 선택 팩토리 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 노랑
+  - `getInvoicePDFComponent(template: string)` 함수 구현
+  - 알 수 없는 템플릿 값은 `standard`로 fallback
+- [ ] `src/app/api/invoice/[id]/pdf/route.tsx` — 템플릿 파라미터 지원 | 담당: 백엔드 | 예상: 1d | 우선순위: 노랑
+  - URL 쿼리 파라미터 `?template=standard|minimal|premium` 처리
+  - Notion DB에서 `PDF 템플릿` 속성 읽어 기본값으로 사용
+- [ ] `components/admin/TemplateSelector.tsx` — 템플릿 선택 UI | 담당: 프론트엔드 | 예상: 1d | 우선순위: 초록
+  - 관리자 대시보드에서 견적서별 PDF 템플릿 변경
+  - shadcn/ui `RadioGroup` 또는 `Select` 활용
 
-- [x] 프로덕션 빌드 테스트 (`npm run build`)
-  - TypeScript/ESLint 오류 없음
-  - 5개 라우트 정상 컴파일: `/`, `/_not-found`, `/api/invoice/[id]`, `/api/invoice/[id]/pdf`, `/invoice/[id]`
+**7-2. 전자 서명 기능**
 
-- [x] End-to-End 수동 테스트 (로컬 `npm run start` 환경, 실제 Notion 데이터)
-  - ✅ 견적서 조회 URL (`Q-2025-001`) → 데이터 정상 표시
-  - ✅ PDF 다운로드 → `견적서_Q-2025-001.pdf` 1.3초 이내 생성
-  - ✅ 잘못된 ID → 커스텀 404 페이지 표시
-  - ✅ 모바일 375px 레이아웃 정상 (햄버거 메뉴 전환 포함)
-  - ✅ 태블릿 768px 레이아웃 정상
-  - ✅ 스켈레톤 로딩 UI 구현 확인 (Notion API 고속 응답으로 가시적 지속시간 최소)
-  - ✅ 에러 바운더리 구현 확인 (error.tsx, AlertCircle + 다시 시도 버튼)
+> 설계 결정 필요: 자체 캔버스 구현 vs 외부 서비스(DocuSign/Adobe Sign) API 연동. 비용과 법적 효력 기준으로 결정할 것.
 
-- [x] `.env.example` 최종 업데이트 (변수명 반영)
-  - `NOTION_SENDER_DB_ID`, `QUOTES_ADMIN_PATH` 포함 6개 변수 최신 상태 확인 완료
+- [ ] 전자 서명 방식 결정 및 설계 문서 작성 | 담당: 전체 | 예상: 2d | 우선순위: 노랑
+- [ ] `components/invoice/SignatureCanvas.tsx` — 서명 캔버스 컴포넌트 (자체 구현 방식 선택 시) | 담당: 프론트엔드 | 예상: 2d | 우선순위: 노랑
+  - `react-signature-canvas` 라이브러리 활용
+  - 서명 완료 후 PNG 데이터 URL 생성
+  - 서명 초기화 버튼
+- [ ] `src/app/api/invoice/[id]/sign/route.ts` — 서명 저장 API | 담당: 백엔드 | 예상: 3d | 우선순위: 노랑
+  - POST 핸들러 (인증 불필요, 클라이언트가 호출)
+  - 서명 이미지를 외부 스토리지(Vercel Blob 또는 Cloudinary) 업로드
+  - 업로드된 URL을 Notion DB `서명 이미지 URL`에 저장
+  - `서명일시`, `status: approved` 업데이트
+- [ ] `src/app/invoice/[id]/page.tsx` — 서명 가능 상태(pending)에서 서명 UI 표시 | 담당: 풀스택 | 예상: 1d | 우선순위: 노랑
 
----
+**7-3. 견적서 버전 관리**
 
-## 전체 일정 요약
+> 설계 방향: 견적서 수정 시 기존 Notion 페이지를 복사하여 새 페이지로 생성, 원본 페이지에 Relation으로 연결한다.
 
-| Phase | 기간 | 상태 | 주요 산출물 |
-|-------|------|------|-------------|
-| Phase 0: 환경 설정 및 Notion 연동 | 2026-02-22 | ✅ 완료 | Notion SDK 연동, `getInvoiceById()` 구현 |
-| Phase 1: 견적서 조회 페이지 | 2026-02-22 | ✅ 완료 | 견적서 웹 뷰어 컴포넌트 완성 |
-| Phase 2: PDF 다운로드 | 2026-02-22 | ✅ 완료 | PDF 생성 API 및 다운로드 버튼 |
-| Phase 3: 반응형 UX 완성 | 2026-02-22 | ✅ 완료 | 로딩/에러 UI, OG 태그, 뷰포트 검증 |
-| Phase 4: 배포 | 2026-02-22 | ✅ 완료 (로컬 검증) | next.config.ts 최적화, 빌드 성공, E2E 테스트 통과 |
+- [ ] `lib/notion.ts` — `duplicateInvoice(pageId)` 함수 추가 | 담당: 백엔드 | 예상: 2d | 우선순위: 초록
+  - 기존 페이지를 기반으로 신규 페이지 생성 (`pages.create()`)
+  - 신규 페이지의 `원본 견적서` relation에 이전 페이지 ID 연결
+  - `버전` 넘버 증가
+- [ ] `src/app/admin/invoice/[id]/history/page.tsx` — 버전 히스토리 페이지 | 담당: 풀스택 | 예상: 3d | 우선순위: 초록
+  - 해당 견적서의 모든 버전 목록 표시
+  - 버전별 합계금액, 발행일, 상태 비교 뷰
 
----
+**7-4. 다국어 지원 (next-intl)**
 
-## 파일 현황
-
-```
-✅ 완료 (Phase 0~1)
-├── lib/notion.ts                              (Notion 클라이언트 + API 함수, getSenderInfo 포함)
-├── lib/helpers.ts                             (formatKRW, formatDate)
-├── types/invoice.ts                           (Invoice, InvoiceItem, Sender 타입)
-├── src/app/invoice/[id]/page.tsx
-├── src/app/invoice/[id]/not-found.tsx
-├── src/app/api/invoice/[id]/route.ts
-├── components/invoice/InvoiceView.tsx
-├── components/invoice/InvoiceHeader.tsx
-├── components/invoice/InvoiceItemsTable.tsx
-└── components/invoice/InvoiceSummary.tsx
-
-✅ 완료 (Phase 2)
-├── src/app/api/invoice/[id]/pdf/route.tsx     (PDF 생성 API)
-├── components/invoice/InvoicePDF.tsx          (A4 PDF 템플릿)
-├── components/invoice/PDFDownloadButton.tsx   (클라이언트 다운로드 버튼)
-└── public/fonts/
-    ├── NanumGothic-Regular.ttf               (2MB, 한국어 완전 지원)
-    └── NanumGothic-Bold.ttf                  (2MB)
-
-✅ 완료 (Phase 3)
-├── src/app/invoice/[id]/loading.tsx               (스켈레톤 로딩 UI)
-├── src/app/invoice/[id]/error.tsx                 (에러 경계, 재시도 버튼)
-└── src/app/invoice/[id]/page.tsx                  (OG 메타태그 추가)
-```
+- [ ] `npm install next-intl` 설치 및 기본 설정 | 담당: 풀스택 | 예상: 1d | 우선순위: 초록
+  - `src/i18n/` 디렉토리 구성: `routing.ts`, `request.ts`
+  - `middleware.ts` 업데이트 — locale prefix 처리 (`/ko`, `/en`)
+- [ ] 번역 파일 작성 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 초록
+  - `messages/ko.json` — 한국어 번역 (견적서 UI 전체)
+  - `messages/en.json` — 영어 번역
+  - 번역 키: 섹션별로 네임스페이스 분리 (`invoice.header`, `invoice.items` 등)
+- [ ] `components/invoice/` 전체 컴포넌트에 `useTranslations()` 적용 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 초록
+- [ ] `components/LanguageToggle.tsx` — 언어 전환 버튼 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 초록
+  - 견적서 페이지 헤더에 KO / EN 토글 버튼 추가
+  - URL 경로의 locale prefix 전환
 
 ---
 
 ## 리스크 및 완화 전략
 
+### Phase 5 리스크
+
 | 리스크 | 영향도 | 발생 가능성 | 완화 전략 |
 |--------|--------|------------|----------|
-| Notion API Rate Limit (초당 3회 요청 제한) | 높음 | 낮음 | Next.js `revalidate` 옵션으로 응답 캐싱 |
-| `@react-pdf/renderer` 한국어 폰트 미지원 | 높음 | 높음 | Phase 2 초반에 폰트 테스트 선행, 문제 시 Puppeteer로 전환 검토 |
-| `@react-pdf/renderer` Vercel Edge Runtime 미지원 | 높음 | 높음 | API Route에 `export const runtime = 'nodejs'` 명시 필수 |
-| Notion API Key 노출 | 높음 | 낮음 | `NOTION_API_KEY`는 서버 전용 변수 (`NEXT_PUBLIC_` 접두사 절대 금지) |
-| `@notionhq/client` v5 업그레이드 | 높음 | 중간 | v2 고정 사용. v5는 `databases.query()` 미지원 확인됨 |
-| Notion 데이터베이스 스키마 변경 | 중간 | 중간 | `lib/notion.ts` 매핑 헬퍼 함수가 단일 진입점 — 여기만 수정 |
-| 대용량 PDF 생성 시 Vercel 함수 타임아웃 (10초) | 중간 | 낮음 | 항목 수 제한 (50개 이하) |
+| NextAuth.js v5 App Router 호환성 이슈 | 높음 | 중간 | v5 안정화 버전 사용, `@auth/core` 버전 고정. 대안: Iron Session 또는 자체 JWT 구현 |
+| Notion PATCH API 응답 지연 | 중간 | 낮음 | 낙관적 UI 업데이트 + 실패 시 롤백. `revalidatePath('/admin')` 호출 |
+| 관리자 비밀번호 평문 저장 위험 | 높음 | 높음 | `bcryptjs.hashSync(password, 12)` 해시값만 환경 변수에 저장. 평문 절대 금지 |
+| Notion 텍스트 검색 미지원 | 중간 | 확실 | 전체 목록을 메모리에서 필터링. 건수 1,000건 이상 시 Vercel KV 캐시 도입 검토 |
+
+### Phase 6 리스크
+
+| 리스크 | 영향도 | 발생 가능성 | 완화 전략 |
+|--------|--------|------------|----------|
+| Resend 발신 도메인 인증 실패 | 높음 | 중간 | DNS 설정 후 24~48시간 전파 대기 시간 계획에 반영. 대안: Resend 테스트 도메인 사용 |
+| Vercel Cron Job Hobby 플랜 제한 (1일 1회) | 낮음 | 확실 | Hobby 플랜은 하루 1개 Cron만 허용. D-3, D-1 알림을 단일 Cron 핸들러에서 모두 처리 |
+| 열람 트래킹 시 Notion API Rate Limit | 중간 | 중간 | `markInvoiceViewed()` 실패를 조용히 처리. 향후 큐(Vercel Queue) 도입 검토 |
+| 클라이언트 이메일 누락으로 발송 불가 | 중간 | 중간 | Notion DB에 `클라이언트 이메일` 컬럼 미입력 시 관리자 UI에서 명확한 안내 |
+
+### Phase 7 리스크
+
+| 리스크 | 영향도 | 발생 가능성 | 완화 전략 |
+|--------|--------|------------|----------|
+| 전자 서명의 법적 효력 불명확 | 높음 | 높음 | 자체 캔버스 서명은 법적 구속력 없음을 고지. 법적 효력 필요 시 DocuSign 등 공인 전자 서명 서비스 사용 |
+| 서명 이미지 외부 스토리지 비용 | 낮음 | 중간 | Vercel Blob 무료 티어(1GB) 우선 활용. 초과 시 Cloudflare R2 전환 |
+| next-intl 라우팅과 NextAuth 미들웨어 충돌 | 높음 | 높음 | 미들웨어 체이닝 패턴 (`createMiddleware`) 적용. 착수 전 Next.js 공식 예제 검토 필수 |
+| Notion 페이지 복사 API 미지원 | 높음 | 확실 | `pages.create()`로 프로퍼티를 수동 복사하는 방식으로 구현. 항목 복사는 별도 `databases.query()` 후 재생성 |
+| PDF 템플릿 증가로 번들 사이즈 증가 | 중간 | 중간 | PDF 컴포넌트를 `serverExternalPackages`에 포함되어 있으므로 번들에 미포함. 영향 없음 |
+
+---
+
+## 기술적 의존성
+
+```
+Phase 5 (관리 기능)
+  └─ NextAuth.js 설치 및 auth.ts 설정
+      └─ middleware.ts 인증 가드
+          ├─ 로그인 페이지 (login/page.tsx)
+          ├─ 관리자 레이아웃 (admin/layout.tsx)
+          │   └─ 견적서 목록 대시보드 (admin/page.tsx)
+          │       ├─ InvoiceListTable (목록 UI)
+          │       ├─ InvoiceFilters (검색/필터 UI)
+          │       └─ StatusChangeButton (상태 변경)
+          └─ 상태 변경 API (api/admin/invoice/[id]/status)
+              └─ updateInvoiceStatus() in lib/notion.ts
+
+Phase 6 (자동화) — Phase 5 완료 후 시작
+  └─ Resend 도메인 인증 (DevOps 선행)
+      ├─ lib/email.ts + 이메일 템플릿 컴포넌트
+      │   └─ 이메일 발송 API + SendEmailButton
+      └─ Cron Job (vercel.json + /api/cron/expiry-reminder)
+          (Phase 5의 getInvoiceList() 재사용)
+  └─ 열람 트래킹 API (Phase 5의 admin UI와 독립적)
+
+Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
+  ├─ 다중 PDF 템플릿 — Phase 0의 InvoicePDF.tsx 기반 확장
+  ├─ 전자 서명 — Phase 5의 인증 구조 재사용 (서명 저장 API는 인증 불필요)
+  ├─ 버전 관리 — Phase 5의 admin 대시보드에 히스토리 탭 추가
+  └─ 다국어 — middleware.ts 수정 필요 (Phase 5와 충돌 가능, 마지막 착수 권장)
+```
+
+---
+
+## 전체 일정 요약
+
+| Phase | 내용 | 예상 기간 | 선행 조건 | 주요 기술 도입 |
+|-------|------|-----------|-----------|----------------|
+| Phase 0~4 | MVP 완료 | 2026-02-22 완료 | — | Next.js, Notion SDK, @react-pdf/renderer |
+| Phase 5 | 관리 기능 | 3주 | MVP 완료 | NextAuth.js v5, Notion PATCH API |
+| Phase 6 | 자동화 | 3주 | Phase 5 완료 | Resend, Vercel Cron Jobs |
+| Phase 7-a | 다중 PDF 템플릿 | 1~2주 | MVP 완료 | — |
+| Phase 7-b | 전자 서명 | 2~3주 | Phase 5 완료 | react-signature-canvas 또는 외부 API |
+| Phase 7-c | 버전 관리 | 2주 | Phase 5 완료 | Notion pages.create() |
+| Phase 7-d | 다국어 지원 | 2주 | Phase 5 완료, 전체 UI 안정화 | next-intl |
+
+> 1인 개발 기준 총 예상 기간: Phase 5~7 전체 완료 시 약 10~14주 추가 소요
 
 ---
 
@@ -328,33 +481,12 @@ QUOTES_ADMIN_PATH=quotes
 
 | 번호 | 항목 | 현재 상태 | 결정 필요자 |
 |------|------|----------|------------|
-| Q1 | Items(견적 항목) 관리 방식 | ✅ **결정됨**: 별도 DB + Relation 방식으로 구현 완료 | — |
-| Q2 | 부가세(10%) 처리 방식 | ✅ **임시 결정**: `total_amount`를 공급가액으로 처리, UI에서 10% 계산 표시. 노션 DB에 별도 필드 불필요 | — |
-| Q3 | 발행자 정보 관리 방식 | ✅ **결정됨**: Notion 별도 DB(`NOTION_SENDER_DB_ID`) 사용. Phase 2 시작 전 DB 생성 및 ID 설정 필요 | — |
-| Q4 | `status = rejected` 견적서 URL 접근 허용 여부 | 🔲 **미결**: 거절된 견적서 조회 정책 결정 필요 | 기획자 |
-| Q5 | PDF 파일명 규칙 | ✅ **결정됨**: `견적서_[invoice_number].pdf` | — |
-| Q6 | `@react-pdf/renderer` vs Puppeteer | 🔲 **미결**: Phase 2 초반 한국어 폰트 테스트 후 결정 | 개발자 |
-
----
-
-## 향후 Phase (MVP 이후)
-
-### Phase 5 (MVP+1): 관리 기능
-- 인증 추가 (NextAuth.js + 관리자 계정)
-- `/admin` 대시보드: 발행한 견적서 전체 목록 조회
-- 견적서 상태(승인/거절) 변경 기능 (Notion API PATCH)
-- 견적서 검색 및 날짜 필터링
-
-### Phase 6 (MVP+2): 자동화
-- 이메일 자동 발송 (Resend 또는 SendGrid 연동)
-- 견적서 유효기간 만료 알림 (Vercel Cron Jobs)
-- 클라이언트 열람 여부 트래킹
-
-### Phase 7 (MVP+3): 고급 기능
-- 다중 PDF 템플릿 지원
-- 전자 서명 기능 (DocuSign/Adobe Sign API)
-- 견적서 버전 관리 및 히스토리
-- 다국어 지원 (next-intl)
+| Q7 | 전자 서명 법적 구속력 요건 | 미결: 자체 캔버스 vs 공인 전자 서명 서비스 선택 | 기획자/법무 |
+| Q8 | 서명 이미지 저장소 | 미결: Vercel Blob vs Cloudflare R2 vs Notion 파일 첨부 | 개발자 |
+| Q9 | 다국어 지원 언어 범위 | 미결: 한국어/영어 2개 언어인지, 추가 언어 계획 있는지 | 기획자 |
+| Q10 | 견적서 생성 기능 포함 여부 | 미결: 현재는 Notion에서 직접 작성. 웹 UI에서 견적서 신규 생성 기능 필요 여부 | 기획자 |
+| Q11 | Vercel 플랜 | 미결: Cron Job 다중 설정 및 Vercel Blob 사용을 위해 Pro 플랜 필요 여부 | 기획자 |
+| Q12 | `status = rejected` 견적서 접근 정책 | 미결 (MVP에서 이월): 거절된 견적서 클라이언트 열람 허용 여부 | 기획자 |
 
 ---
 
@@ -362,9 +494,4 @@ QUOTES_ADMIN_PATH=quotes
 
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
-| v1.0 | 2026-02-21 | 최초 작성 (PRD v1.0 기반) |
-| v1.1 | 2026-02-22 | Phase 0·1 완료 반영. 환경 변수명 확정, @notionhq/client v2 고정, 보류 Q1·Q2·Q5 결정 처리 |
-| v1.2 | 2026-02-22 | 발행자 DB 설정 완료 (Q3 결정). 테스트 데이터 삽입 완료. ROADMAP에 발행자 DB 스키마 반영 |
-| v1.3 | 2026-02-22 | Phase 2 구현 완료 반영. Sender 타입·getSenderInfo 추가. NanumGothic TTF 폰트 채택. PDF API Route·PDFDownloadButton·InvoiceView 통합 완료. 알려진 이슈(PDF 404, dev 오버레이) 기록 |
-| v1.4 | 2026-02-22 | Phase 3 구현 완료 반영. loading.tsx(스켈레톤)·error.tsx(에러 경계) 추가. page.tsx에 openGraph 메타태그 적용. 3개 뷰포트(375/768/1280px) 스크린샷 검증 완료. 성공 지표 전체 달성 |
-| v1.5 | 2026-02-22 | Phase 4 로컬 프로덕션 검증 완료. next.config.ts에 serverExternalPackages 추가. npm run build 오류 없음. E2E 테스트 6개 케이스 통과(견적서 조회·PDF 1.3초·404·375px·768px·스켈레톤 구현). Vercel 배포 환경 변수 가이드 문서화 |
+| v2.0 | 2026-02-22 | 최초 작성 (MVP Phase 0~4 완료 기준, Phase 5~7 고도화 로드맵 정의) |
