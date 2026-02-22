@@ -1,7 +1,7 @@
 # 노션 기반 견적서 관리 시스템 개발 로드맵
 
-> 마지막 업데이트: 2026-02-21
-> 버전: v1.0
+> 마지막 업데이트: 2026-02-22
+> 버전: v1.2
 
 ---
 
@@ -13,11 +13,11 @@
 
 ## 성공 지표 (MVP 기준)
 
-- [ ] 노션 데이터베이스에서 견적서 데이터 정상 조회 (응답 시간 3초 이내)
-- [ ] `/invoice/[notionPageId]` 경로로 접근 시 견적서 웹 렌더링 정상 동작
+- [x] 잘못된 `notionPageId` 접근 시 커스텀 404 페이지 표시
+- [~] 노션 데이터베이스에서 견적서 데이터 정상 조회 (구현 완료 / 실 브라우저 테스트 필요)
+- [~] `/invoice/[notionPageId]` 경로로 접근 시 견적서 웹 렌더링 정상 동작 (구현 완료 / 실 브라우저 테스트 필요)
 - [ ] PDF 다운로드 버튼 클릭 시 10초 이내 PDF 파일 생성 및 다운로드
 - [ ] 모바일(375px), 태블릿(768px), 데스크톱(1280px) 3가지 뷰포트에서 레이아웃 정상 표시
-- [ ] 잘못된 `notionPageId` 접근 시 커스텀 404 페이지 표시
 
 ---
 
@@ -31,129 +31,116 @@
 | 스타일링 | TailwindCSS | v4 | CSS-first 방식, `app/globals.css` 단일 파일 관리 |
 | 컴포넌트 | shadcn/ui | latest | 이미 프로젝트에 설치됨, 직접 수정 가능 |
 | 아이콘 | Lucide React | 0.575.0 | 이미 프로젝트에 설치됨 |
-| Notion SDK | @notionhq/client | latest | 공식 SDK, 타입 지원 |
+| Notion SDK | @notionhq/client | **v2** (v5 사용 불가 — 아래 주의사항 참고) | 공식 SDK, 타입 지원 |
 | PDF 생성 | @react-pdf/renderer | latest | React 컴포넌트 기반 PDF 생성, 서버/클라이언트 모두 지원 |
 | 배포 | Vercel | - | Next.js 최적화, 환경 변수 관리 용이 |
 | 패키지 관리 | npm | - | 프로젝트 기본 설정 |
 
+> **⚠️ @notionhq/client 버전 주의**: v5에서 `databases.query()` 메서드가 제거됨.
+> 반드시 v2를 유지해야 한다. (`npm install @notionhq/client@2`)
+
 ---
 
-## 현재 구현 상태 (2026-02-21 기준)
+## 노션 데이터베이스 설정 (완료)
 
-이미 스캐폴딩이 완료된 파일 목록 (TODO 주석 포함, 실제 로직 미구현):
+### 발행자 DB (`NOTION_SENDER_DB_ID`)
 
-- `src/app/invoice/[id]/page.tsx` - 라우트 구조 및 Props 타입 정의 완료
-- `src/app/api/invoice/[id]/route.ts` - API 엔드포인트 구조 및 에러 처리 패턴 정의 완료
-- `lib/notion.ts` - `getInvoiceById()`, `getInvoiceList()` 함수 시그니처 정의 완료 (구현 필요)
-- `types/invoice.ts` - `Invoice`, `InvoiceItem`, `InvoiceStatus`, `NotionInvoiceProperties` 타입 정의 완료
-- `lib/constants.ts` - `SITE_CONFIG`, `NAV_ITEMS` 견적서 서비스용으로 설정 완료
-- `src/app/page.tsx` - 홈페이지 서비스 소개 UI 완료
+| 속성명 | 타입 | 매핑 필드 |
+|--------|------|-----------|
+| 이름 | title | 식별용 레이블 |
+| 회사명 | rich_text | `company_name` |
+| 대표자명 | rich_text | `representative` |
+| 사업자등록번호 | rich_text | `business_number` |
+| 주소 | rich_text | `address` |
+| 전화번호 | rich_text | `phone` |
+| 이메일 | email | `email` |
+| 은행명 | rich_text | `bank_name` |
+| 계좌번호 | rich_text | `account_number` |
+| 예금주 | rich_text | `account_holder` |
+
+> DB 첫 번째 행을 항상 발행자로 사용 (단일 발행자 고정 방식)
+> 테스트 데이터 페이지 ID: `30ff71b03408810daacec8fdddbcacf8`
+
+### 견적서 DB (`NOTION_QUOTE_DB_ID`)
+
+| 속성명 | 타입 | 매핑 필드 |
+|--------|------|-----------|
+| 이름 | title | `invoice_number` |
+| 고객명 | rich_text | `client_name` |
+| 발행일 | date | `issue_date` |
+| 유효기간 | date | `valid_until` |
+| 합계금액 | number (원) | `total_amount` |
+| 상태 | select (pending/approved/rejected) | `status` |
+| 항목 | relation → 견적 항목 DB | — |
+
+### 견적 항목 DB (`NOTION_QUOTE_ITEM_DB_ID`)
+
+| 속성명 | 타입 | 매핑 필드 |
+|--------|------|-----------|
+| 이름 | title | `description` |
+| 수량 | number | `quantity` |
+| 단가 | number (원) | `unit_price` |
+| 공급가액 | formula (`수량 * 단가`) | `amount` |
+| 견적서 | relation → 견적서 DB | — |
+
+---
+
+## 환경 변수
+
+```env
+NOTION_API_KEY=...
+NOTION_QUOTE_DB_ID=30ff71b0340880fe9b5bf8d7a8a7f375
+NOTION_QUOTE_ITEM_DB_ID=30ff71b034088056967cfc65b402f2c1
+NOTION_SENDER_DB_ID=30ff71b03408800aa7b6e145c1793419
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+QUOTES_ADMIN_PATH=quotes
+```
 
 ---
 
 ## 개발 로드맵
 
-### Phase 0: 환경 설정 및 Notion 연동 기반 구축 (1주)
+### Phase 0: 환경 설정 및 Notion 연동 기반 구축 ✅ 완료
 
-**목표**: 실제 Notion API 호출이 가능한 개발 환경을 구성하고, 데이터 조회 레이어를 완성한다.
-
-**완료 기준**:
-- Notion SDK 설치 완료
-- `.env.local`에 실제 Notion API Key 및 Database ID 설정
-- `getInvoiceById()` 함수가 Notion API로부터 실제 데이터를 반환
-- TypeScript 타입 오류 없이 빌드 성공
+**완료일**: 2026-02-22
 
 #### 태스크
 
-- [ ] `@notionhq/client` 패키지 설치 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 높음
-  - `npm install @notionhq/client`
-  - `package.json` dependencies에 추가 확인
-
-- [ ] `.env.local` 파일 생성 및 환경 변수 설정 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 높음
-  - `NOTION_API_KEY=secret_xxx` 설정
-  - `NOTION_DATABASE_ID=xxx` 설정
-  - `NEXT_PUBLIC_APP_URL=http://localhost:3000` 설정
-  - `.env.example` 파일 업데이트
-
-- [ ] Notion Integration 생성 및 데이터베이스 권한 연결 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 높음
-  - [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations) 에서 Integration 생성
-  - 견적서 데이터베이스에 Integration 연결
-  - 항목(Items) 데이터베이스에도 Integration 연결
-
-- [ ] `lib/notion.ts` - Notion 클라이언트 초기화 구현 | 담당: 풀스택 | 예상: 1d | 우선순위: 높음
-  - `@notionhq/client` import 주석 해제
-  - `getNotionClient()` 싱글톤 함수 활성화
-  - `getRequiredEnv()` 함수로 환경 변수 검증 연결
-
-- [ ] `lib/notion.ts` - `getInvoiceById()` 함수 구현 | 담당: 풀스택 | 예상: 2d | 우선순위: 높음
-  - `notion.pages.retrieve({ page_id: pageId })` 호출
-  - Notion 프로퍼티를 `Invoice` 타입으로 매핑 (`mapNotionPageToInvoice()` 헬퍼 작성)
-  - 존재하지 않는 페이지 접근 시 `null` 반환 처리
-  - Notion API 에러 코드별 처리 (`object_not_found` 등)
-
-- [ ] `lib/notion.ts` - Items 데이터베이스 연동 구현 | 담당: 풀스택 | 예상: 1d | 우선순위: 높음
-  - `notion.databases.query()` 로 Relation 연결된 항목 조회
-  - `InvoiceItem[]` 타입으로 매핑
-  - `getInvoiceById()` 내에서 items 필드 병합
-
-- [ ] `types/invoice.ts` - Notion 프로퍼티 타입 보강 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 중간
-  - `@notionhq/client` 의 실제 프로퍼티 타입으로 `NotionInvoiceProperties` 업데이트
-  - Notion `PageObjectResponse` 타입 활용
+- [x] `@notionhq/client@2` 패키지 설치
+- [x] `.env.local` 파일 생성 및 환경 변수 설정
+  - `NOTION_QUOTE_DB_ID`, `NOTION_QUOTE_ITEM_DB_ID` 변수명 확정 (기존 `NOTION_DATABASE_ID`에서 변경)
+- [x] Notion Integration 생성 및 두 DB에 권한 연결
+- [x] `lib/notion.ts` — Notion 클라이언트 싱글톤 초기화
+- [x] `lib/notion.ts` — `getInvoiceById()` 구현
+  - `pages.retrieve()` + `databases.query()` (relation 필터링) 조합
+  - `object_not_found` 에러 → `null` 반환 처리
+- [x] `lib/notion.ts` — `getInvoiceList()` 구현 (발행일 내림차순)
+- [x] `types/invoice.ts` — `PageObjectResponse` 기반 타입 추출 헬퍼 구현
+- [x] TypeScript 타입 오류 없이 빌드 성공 (`npm run build` 통과)
+- [x] 노션에 테스트 데이터 2건 삽입 (Q-2025-001, Q-2025-002)
 
 ---
 
-### Phase 1: 견적서 조회 페이지 구현 (1주)
+### Phase 1: 견적서 조회 페이지 구현 ✅ 완료
 
-**목표**: 클라이언트가 고유 URL로 접속했을 때 견적서 정보가 정확하고 아름답게 표시된다.
-
-**완료 기준**:
-- `/invoice/[notionPageId]` 접속 시 견적서 데이터가 화면에 표시됨
-- 견적서 번호, 클라이언트명, 발행일, 유효기간, 항목 목록, 합계 금액이 모두 노출됨
-- 존재하지 않는 ID 접속 시 404 페이지로 이동
-- API Route가 견적서 데이터를 JSON으로 정상 반환
+**완료일**: 2026-02-22 (MVP 선구현 포함)
 
 #### 태스크
 
-- [ ] `src/app/api/invoice/[id]/route.ts` - GET 핸들러 구현 | 담당: 풀스택 | 예상: 1d | 우선순위: 높음
-  - `getInvoiceById(id)` 호출 주석 해제 및 활성화
-  - 404 응답 처리 로직 활성화
-  - Notion API 에러 시 500 응답 반환
+- [x] `src/app/api/invoice/[id]/route.ts` — GET 핸들러 (404/500 처리 포함)
+- [x] `components/invoice/InvoiceHeader.tsx` — 견적서 번호, 상태 배지, 수신/발행일/유효기간
+- [x] `components/invoice/InvoiceItemsTable.tsx` — 항목 테이블, 모바일 가로 스크롤
+- [x] `components/invoice/InvoiceSummary.tsx` — 공급가액 / 부가세(10%) / 합계금액
+- [x] `components/invoice/InvoiceView.tsx` — 위 컴포넌트 통합
+- [x] `src/app/invoice/[id]/page.tsx` — `getInvoiceById()` 연결, `generateMetadata` 적용
+- [x] `src/app/invoice/[id]/not-found.tsx` — 커스텀 404 페이지
+- [x] `lib/helpers.ts` — `formatKRW()`, `formatDate()` 구현
 
-- [ ] `components/invoice/InvoiceHeader.tsx` 컴포넌트 생성 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 높음
-  - 견적서 번호 표시 (예: Q-2024-001)
-  - 발행일 / 유효기간 표시
-  - 클라이언트명 표시
-  - 견적서 상태 배지 (대기/승인/거절) - shadcn/ui `Badge` 컴포넌트 활용
-
-- [ ] `components/invoice/InvoiceItemsTable.tsx` 컴포넌트 생성 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 높음
-  - 항목 테이블 (항목명, 수량, 단가, 금액) 렌더링
-  - shadcn/ui `Table` 컴포넌트 활용 (없으면 `npx shadcn@latest add table`)
-  - 금액 포맷팅 (원화: `xxx,xxx원`)
-  - 합계 행 표시
-
-- [ ] `components/invoice/InvoiceSummary.tsx` 컴포넌트 생성 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 높음
-  - 공급가액, 부가세(10%), 합계금액 섹션 표시
-  - 금액 강조 스타일 적용
-
-- [ ] `components/invoice/InvoiceView.tsx` 컴포넌트 생성 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 높음
-  - `InvoiceHeader`, `InvoiceItemsTable`, `InvoiceSummary` 통합
-  - `Invoice` 타입 데이터를 props로 수신
-  - 인쇄 시 레이아웃 최적화 고려 (`@media print` CSS)
-
-- [ ] `src/app/invoice/[id]/page.tsx` - 실제 데이터 조회 및 렌더링 연결 | 담당: 풀스택 | 예상: 1d | 우선순위: 높음
-  - `getInvoiceById(id)` 호출 주석 해제
-  - `notFound()` 호출 활성화
-  - `InvoiceView` 컴포넌트에 데이터 전달
-  - `generateMetadata` 에서 실제 견적서 번호로 title 업데이트
-
-- [ ] `src/app/invoice/[id]/not-found.tsx` 컴포넌트 생성 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 중간
-  - "견적서를 찾을 수 없습니다" 안내 메시지
-  - 발행자에게 문의하도록 가이드 문구
-  - 홈으로 이동 링크
-
-- [ ] `lib/helpers.ts` - 금액 포맷팅 유틸리티 추가 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 중간
-  - `formatKRW(amount: number): string` 함수 (예: `1,000,000원`)
-  - `formatDate(dateStr: string): string` 함수 (예: `2024년 1월 1일`)
+**테스트 URL**:
+```
+/invoice/30ff71b03408816c9975ca05fa14818c   # Q-2025-001 (pending)
+/invoice/30ff71b03408812b8f05f938f82a451b   # Q-2025-002 (approved)
+```
 
 ---
 
@@ -164,45 +151,36 @@
 **완료 기준**:
 - PDF 다운로드 버튼 클릭 시 10초 이내 PDF 생성 완료
 - 생성된 PDF에 견적서 번호, 항목, 금액이 정확하게 표시됨
-- PDF 파일명이 견적서 번호 기반으로 생성됨 (예: `견적서_Q-2024-001.pdf`)
+- PDF 파일명: `견적서_[invoice_number].pdf`
 - 다운로드 중 로딩 상태 표시
 
 #### 태스크
 
-- [ ] `@react-pdf/renderer` 패키지 설치 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 높음
+- [ ] `@react-pdf/renderer` 패키지 설치
   - `npm install @react-pdf/renderer`
-  - TypeScript 타입 패키지 확인 (`@types/react-pdf` 필요 시 설치)
+  - TypeScript 타입 패키지 확인
 
-- [ ] `src/app/api/invoice/[id]/pdf/route.ts` - PDF 생성 API 라우트 생성 | 담당: 풀스택 | 예상: 1d | 우선순위: 높음
-  - GET 핸들러 구현
-  - `getInvoiceById(id)` 로 데이터 조회
-  - `@react-pdf/renderer` 의 `renderToBuffer()` 로 PDF 바이너리 생성
-  - `Content-Type: application/pdf`, `Content-Disposition: attachment` 헤더 설정
-  - 404/500 에러 처리
+- [ ] PDF 폰트 설정 및 한국어 깨짐 방지 (**Phase 2 최우선 선행 작업**)
+  - `public/fonts/` 디렉토리에 한국어 폰트 저장 (Noto Sans KR 권장)
+  - `Font.register()` 로 폰트 등록 후 렌더링 테스트
 
-- [ ] `components/invoice/InvoicePDF.tsx` - PDF 템플릿 컴포넌트 생성 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 높음
-  - `@react-pdf/renderer` 의 `Document`, `Page`, `View`, `Text`, `StyleSheet` 활용
-  - 한국어 폰트 설정 (Noto Sans KR 또는 나눔고딕 폰트 등록)
+- [ ] `components/invoice/InvoicePDF.tsx` — PDF 템플릿 컴포넌트
+  - `Document`, `Page`, `View`, `Text`, `StyleSheet` 활용
   - 견적서 헤더 (발행자 정보, 클라이언트 정보)
-  - 항목 테이블 (항목명, 수량, 단가, 금액)
-  - 합계 섹션
+  - 항목 테이블, 합계 섹션
   - A4 사이즈 레이아웃
 
-- [ ] `components/invoice/PDFDownloadButton.tsx` - 다운로드 버튼 Client 컴포넌트 생성 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 높음
-  - `'use client'` 지시어 추가
-  - 클릭 시 `/api/invoice/[id]/pdf` API 호출
-  - 다운로드 중 로딩 스피너 표시 (`LoadingSpinner` 컴포넌트 재사용)
-  - Blob 응답을 `<a>` 태그로 다운로드 처리
-  - shadcn/ui `Button` 컴포넌트 활용
+- [ ] `src/app/api/invoice/[id]/pdf/route.ts` — PDF 생성 API
+  - `export const runtime = 'nodejs'` 필수 (Edge Runtime 미지원)
+  - `renderToBuffer()` 로 PDF 바이너리 생성
+  - `Content-Type: application/pdf` + `Content-Disposition: attachment` 헤더
 
-- [ ] `InvoiceView.tsx` 에 `PDFDownloadButton` 통합 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 높음
-  - 견적서 상단 또는 하단에 다운로드 버튼 배치
-  - 버튼 위치 및 스타일 조정
+- [ ] `components/invoice/PDFDownloadButton.tsx` — 다운로드 버튼
+  - `'use client'` 지시어
+  - 클릭 → `/api/invoice/[id]/pdf` fetch → Blob → `<a>` 다운로드
+  - 로딩 스피너 표시
 
-- [ ] PDF 폰트 설정 및 한국어 깨짐 방지 | 담당: 풀스택 | 예상: 1d | 우선순위: 높음
-  - Google Fonts 또는 로컬 폰트 파일에서 한국어 지원 폰트 다운로드
-  - `public/fonts/` 디렉토리에 폰트 파일 저장
-  - `@react-pdf/renderer` 의 `Font.register()` 로 폰트 등록
+- [ ] `InvoiceView.tsx` 에 `PDFDownloadButton` 통합
 
 ---
 
@@ -212,28 +190,25 @@
 
 **완료 기준**:
 - 375px, 768px, 1280px 뷰포트에서 레이아웃 깨짐 없음
-- 로딩 상태 및 에러 상태 UI 완성
+- 로딩/에러 상태 UI 완성
 - 페이지 메타데이터(OG 태그) 설정 완료
 
 #### 태스크
 
-- [ ] `InvoiceView.tsx` 반응형 CSS 적용 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 높음
-  - 모바일: 단일 컬럼, 폰트 크기 축소
-  - 태블릿 이상: 2컬럼 헤더 레이아웃
-  - `InvoiceItemsTable` 모바일 가로 스크롤 처리
-  - TailwindCSS `sm:`, `md:`, `lg:` 반응형 프리픽스 활용
+- [ ] `src/app/invoice/[id]/loading.tsx` — 스켈레톤 로딩 UI
+  - 견적서 레이아웃 형태의 Skeleton
+  - shadcn/ui `Skeleton` 컴포넌트 활용
 
-- [ ] `src/app/invoice/[id]/loading.tsx` - 로딩 상태 UI 생성 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 중간
-  - 견적서 레이아웃 형태의 스켈레톤 UI
-  - shadcn/ui `Skeleton` 컴포넌트 활용 (없으면 `npx shadcn@latest add skeleton`)
+- [ ] `src/app/invoice/[id]/error.tsx` — 에러 경계
+  - Notion API 장애 시 사용자 친화적 메시지
+  - 새로고침 버튼
 
-- [ ] `src/app/invoice/[id]/page.tsx` - OG 메타태그 설정 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 중간
-  - `generateMetadata()` 에서 `openGraph` 속성 설정
-  - 견적서 번호, 클라이언트명을 title/description에 반영
+- [ ] `src/app/invoice/[id]/page.tsx` — OG 메타태그 추가
+  - `generateMetadata()` 에 `openGraph` 속성 추가
+  - 견적서 번호, 클라이언트명 반영
 
-- [ ] 에러 경계 `src/app/invoice/[id]/error.tsx` 생성 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 중간
-  - Notion API 일시 장애 시 사용자 친화적 에러 메시지 표시
-  - "잠시 후 다시 시도해주세요" 안내 및 새로고침 버튼
+- [ ] 전 뷰포트 레이아웃 검증
+  - 모바일 375px, 태블릿 768px, 데스크톱 1280px
 
 ---
 
@@ -248,72 +223,63 @@
 
 #### 태스크
 
-- [ ] Vercel 프로젝트 환경 변수 설정 | 담당: DevOps/풀스택 | 예상: 0.5d | 우선순위: 높음
-  - Vercel 대시보드에서 `NOTION_API_KEY` 추가
-  - Vercel 대시보드에서 `NOTION_DATABASE_ID` 추가
-  - Vercel 대시보드에서 `NEXT_PUBLIC_APP_URL` 추가 (배포 도메인)
+- [ ] Vercel 프로젝트 환경 변수 설정
+  - `NOTION_API_KEY`
+  - `NOTION_QUOTE_DB_ID`
+  - `NOTION_QUOTE_ITEM_DB_ID`
+  - `NEXT_PUBLIC_APP_URL` (배포 도메인)
 
-- [ ] `next.config.ts` - 프로덕션 설정 검토 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 중간
-  - `@react-pdf/renderer` 서버사이드 렌더링 호환성 확인
-  - Vercel Edge Runtime 대신 Node.js Runtime 사용 확인 (`export const runtime = 'nodejs'`)
+- [ ] `next.config.ts` — 프로덕션 설정 검토
+  - `@react-pdf/renderer` Node.js Runtime 호환성 확인
 
-- [ ] 프로덕션 빌드 테스트 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 높음
-  - `npm run build` 실행 및 오류 수정
-  - TypeScript 타입 오류 전량 해결
-  - ESLint 경고 처리
+- [ ] 프로덕션 빌드 테스트 (`npm run build`)
 
-- [ ] End-to-End 수동 테스트 | 담당: 풀스택 | 예상: 1d | 우선순위: 높음
-  - 실제 Notion 데이터베이스에 테스트 견적서 1건 생성
-  - 견적서 조회 URL 접속 → 데이터 표시 확인
+- [ ] End-to-End 수동 테스트
+  - 견적서 조회 URL → 데이터 표시 확인
   - PDF 다운로드 → 파일 내용 확인
-  - 잘못된 ID 접속 → 404 페이지 확인
-  - 모바일 Chrome/Safari에서 레이아웃 확인
+  - 잘못된 ID → 404 페이지 확인
+  - 모바일 Chrome/Safari 레이아웃 확인
 
-- [ ] `.env.example` 최종 업데이트 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 낮음
-  - 모든 환경 변수 샘플 값 및 설명 추가
+- [ ] `.env.example` 최종 업데이트 (변수명 반영)
 
 ---
 
 ## 전체 일정 요약
 
-| Phase | 기간 | 주요 산출물 |
-|-------|------|-------------|
-| Phase 0: 환경 설정 및 Notion 연동 | 1주 (2026-02-21 ~ 2026-02-27) | Notion SDK 연동, `getInvoiceById()` 실제 구현 |
-| Phase 1: 견적서 조회 페이지 | 1주 (2026-02-28 ~ 2026-03-06) | 견적서 웹 뷰어 컴포넌트 완성 |
-| Phase 2: PDF 다운로드 | 1주 (2026-03-07 ~ 2026-03-13) | PDF 생성 API 및 다운로드 버튼 |
-| Phase 3: 반응형 UX 완성 | 0.5주 (2026-03-14 ~ 2026-03-17) | 모바일 대응, 로딩/에러 UI |
-| Phase 4: 배포 | 0.5주 (2026-03-18 ~ 2026-03-20) | Vercel 배포, E2E 테스트 |
-| **총 기간** | **약 4주** | **MVP 완성** |
+| Phase | 기간 | 상태 | 주요 산출물 |
+|-------|------|------|-------------|
+| Phase 0: 환경 설정 및 Notion 연동 | 2026-02-22 | ✅ 완료 | Notion SDK 연동, `getInvoiceById()` 구현 |
+| Phase 1: 견적서 조회 페이지 | 2026-02-22 | ✅ 완료 | 견적서 웹 뷰어 컴포넌트 완성 |
+| Phase 2: PDF 다운로드 | 2026-03-07 ~ 2026-03-13 | 🔲 대기 | PDF 생성 API 및 다운로드 버튼 |
+| Phase 3: 반응형 UX 완성 | 2026-03-14 ~ 2026-03-17 | 🔲 대기 | 로딩/에러 UI, OG 태그 |
+| Phase 4: 배포 | 2026-03-18 ~ 2026-03-20 | 🔲 대기 | Vercel 배포, E2E 테스트 |
 
 ---
 
-## 생성될 파일 목록 (Phase별)
+## 파일 현황
 
 ```
-Phase 0
-└── lib/notion.ts                              (수정: TODO 주석 해제 및 구현)
+✅ 완료
+├── lib/notion.ts                              (Notion 클라이언트 + API 함수)
+├── lib/helpers.ts                             (formatKRW, formatDate)
+├── types/invoice.ts                           (Invoice, InvoiceItem 타입)
+├── src/app/invoice/[id]/page.tsx
+├── src/app/invoice/[id]/not-found.tsx
+├── src/app/api/invoice/[id]/route.ts
+├── components/invoice/InvoiceView.tsx
+├── components/invoice/InvoiceHeader.tsx
+├── components/invoice/InvoiceItemsTable.tsx
+└── components/invoice/InvoiceSummary.tsx
 
-Phase 1
-├── src/app/invoice/[id]/page.tsx             (수정: 실제 데이터 연결)
-├── src/app/invoice/[id]/not-found.tsx        (신규)
-├── components/invoice/InvoiceView.tsx         (신규)
-├── components/invoice/InvoiceHeader.tsx       (신규)
-├── components/invoice/InvoiceItemsTable.tsx   (신규)
-├── components/invoice/InvoiceSummary.tsx      (신규)
-└── lib/helpers.ts                             (수정: 금액/날짜 포맷 유틸 추가)
+🔲 미구현 (Phase 2)
+├── src/app/api/invoice/[id]/pdf/route.ts
+├── components/invoice/InvoicePDF.tsx
+├── components/invoice/PDFDownloadButton.tsx
+└── public/fonts/                              (한국어 폰트)
 
-Phase 2
-├── src/app/api/invoice/[id]/pdf/route.ts      (신규)
-├── components/invoice/InvoicePDF.tsx          (신규)
-├── components/invoice/PDFDownloadButton.tsx   (신규)
-└── public/fonts/                              (신규: 한국어 폰트 파일)
-
-Phase 3
-├── src/app/invoice/[id]/loading.tsx           (신규)
-└── src/app/invoice/[id]/error.tsx             (신규)
-
-Phase 4
-└── .env.example                               (수정)
+🔲 미구현 (Phase 3)
+├── src/app/invoice/[id]/loading.tsx
+└── src/app/invoice/[id]/error.tsx
 ```
 
 ---
@@ -322,31 +288,13 @@ Phase 4
 
 | 리스크 | 영향도 | 발생 가능성 | 완화 전략 |
 |--------|--------|------------|----------|
-| Notion API Rate Limit (초당 3회 요청 제한) | 높음 | 낮음 | Next.js `revalidate` 옵션으로 응답 캐싱, 동시 접속 폭주 시 대응 |
+| Notion API Rate Limit (초당 3회 요청 제한) | 높음 | 낮음 | Next.js `revalidate` 옵션으로 응답 캐싱 |
 | `@react-pdf/renderer` 한국어 폰트 미지원 | 높음 | 높음 | Phase 2 초반에 폰트 테스트 선행, 문제 시 Puppeteer로 전환 검토 |
 | `@react-pdf/renderer` Vercel Edge Runtime 미지원 | 높음 | 높음 | API Route에 `export const runtime = 'nodejs'` 명시 필수 |
 | Notion API Key 노출 | 높음 | 낮음 | `NOTION_API_KEY`는 서버 전용 변수 (`NEXT_PUBLIC_` 접두사 절대 금지) |
-| Notion 데이터베이스 스키마 변경 | 중간 | 중간 | `mapNotionPageToInvoice()` 매핑 함수 단일 진입점 유지, 스키마 고정 합의 |
-| 대용량 PDF 생성 시 Vercel 함수 타임아웃 (10초) | 중간 | 낮음 | 항목 수 제한 (50개 이하), 필요 시 스트리밍 응답 고려 |
-| Notion 서비스 장애 | 중간 | 낮음 | `error.tsx` 에서 사용자 안내, Vercel 캐싱으로 일시 대응 |
-
----
-
-## 기술적 의존성
-
-```
-Phase 0 (Notion 연동)
-    └── Phase 1에 필수 (데이터 없이 UI 구현 불가)
-         └── Phase 2에 필수 (PDF에 견적서 데이터 필요)
-              └── Phase 3 (데이터 로딩 중 UI 필요)
-                   └── Phase 4 (모두 완성 후 배포)
-
-패키지 의존성:
-    @notionhq/client        → lib/notion.ts 구현에 필수
-    @react-pdf/renderer     → InvoicePDF.tsx, PDF API Route에 필수
-    shadcn/ui Table         → InvoiceItemsTable.tsx 에 필요
-    shadcn/ui Skeleton      → loading.tsx 에 필요
-```
+| `@notionhq/client` v5 업그레이드 | 높음 | 중간 | v2 고정 사용. v5는 `databases.query()` 미지원 확인됨 |
+| Notion 데이터베이스 스키마 변경 | 중간 | 중간 | `lib/notion.ts` 매핑 헬퍼 함수가 단일 진입점 — 여기만 수정 |
+| 대용량 PDF 생성 시 Vercel 함수 타임아웃 (10초) | 중간 | 낮음 | 항목 수 제한 (50개 이하) |
 
 ---
 
@@ -354,12 +302,12 @@ Phase 0 (Notion 연동)
 
 | 번호 | 항목 | 현재 상태 | 결정 필요자 |
 |------|------|----------|------------|
-| Q1 | Items(견적 항목)가 별도 Notion 데이터베이스인지, 견적서 페이지의 하위 블록인지 | PRD에 Relation으로 명시되어 있으나, 구현 방식 확인 필요 | 개발자 |
-| Q2 | PDF에 부가세(10%) 항목을 별도 표시할지 여부 | PRD에 명시 없음. `total_amount`가 부가세 포함인지 제외인지 확인 필요 | 기획자 |
-| Q3 | 발행자(프리랜서/기업) 정보 (회사명, 사업자번호, 연락처)를 어디서 관리할지 | PRD 데이터 모델에 발행자 정보 없음. 환경 변수 or Notion 별도 DB 결정 필요 | 기획자 |
-| Q4 | Notion 견적서 페이지의 `status` 가 `거절` 인 경우 웹 조회를 허용할지 | PRD에 명시 없음. 거절된 견적서 URL 접근 정책 결정 필요 | 기획자 |
-| Q5 | PDF 파일명 규칙 | PRD에 명시 없음. `견적서_[invoice_number].pdf` 로 가정하고 진행 | 개발자 |
-| Q6 | `@react-pdf/renderer` vs Puppeteer 최종 선택 | PRD에 "또는" 으로 명시. 한국어 폰트 지원 테스트 후 Phase 2 초반 결정 | 개발자 |
+| Q1 | Items(견적 항목) 관리 방식 | ✅ **결정됨**: 별도 DB + Relation 방식으로 구현 완료 | — |
+| Q2 | 부가세(10%) 처리 방식 | ✅ **임시 결정**: `total_amount`를 공급가액으로 처리, UI에서 10% 계산 표시. 노션 DB에 별도 필드 불필요 | — |
+| Q3 | 발행자 정보 관리 방식 | ✅ **결정됨**: Notion 별도 DB(`NOTION_SENDER_DB_ID`) 사용. Phase 2 시작 전 DB 생성 및 ID 설정 필요 | — |
+| Q4 | `status = rejected` 견적서 URL 접근 허용 여부 | 🔲 **미결**: 거절된 견적서 조회 정책 결정 필요 | 기획자 |
+| Q5 | PDF 파일명 규칙 | ✅ **결정됨**: `견적서_[invoice_number].pdf` | — |
+| Q6 | `@react-pdf/renderer` vs Puppeteer | 🔲 **미결**: Phase 2 초반 한국어 폰트 테스트 후 결정 | 개발자 |
 
 ---
 
@@ -389,3 +337,5 @@ Phase 0 (Notion 연동)
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
 | v1.0 | 2026-02-21 | 최초 작성 (PRD v1.0 기반) |
+| v1.1 | 2026-02-22 | Phase 0·1 완료 반영. 환경 변수명 확정, @notionhq/client v2 고정, 보류 Q1·Q2·Q5 결정 처리 |
+| v1.2 | 2026-02-22 | 발행자 DB 설정 완료 (Q3 결정). 테스트 데이터 삽입 완료. ROADMAP에 발행자 DB 스키마 반영 |
