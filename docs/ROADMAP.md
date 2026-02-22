@@ -1,7 +1,7 @@
 # 노션 기반 견적서 관리 시스템 개발 로드맵
 
 > 마지막 업데이트: 2026-02-22
-> 버전: v1.3
+> 버전: v1.4
 
 ---
 
@@ -17,7 +17,7 @@
 - [x] 노션 데이터베이스에서 견적서 데이터 정상 조회
 - [x] `/invoice/[notionPageId]` 경로로 접근 시 견적서 웹 렌더링 정상 동작
 - [x] PDF 다운로드 버튼 클릭 시 10초 이내 PDF 파일 생성 및 다운로드
-- [ ] 모바일(375px), 태블릿(768px), 데스크톱(1280px) 3가지 뷰포트에서 레이아웃 정상 표시
+- [x] 모바일(375px), 태블릿(768px), 데스크톱(1280px) 3가지 뷰포트에서 레이아웃 정상 표시
 
 ---
 
@@ -195,7 +195,9 @@ QUOTES_ADMIN_PATH=quotes
 
 ---
 
-### Phase 3: 반응형 레이아웃 및 UX 완성 (0.5주)
+### Phase 3: 반응형 레이아웃 및 UX 완성 ✅ 완료
+
+**완료일**: 2026-02-22
 
 **목표**: 모든 디바이스에서 견적서가 올바르게 표시되고, 사용자 경험이 완성된다.
 
@@ -206,20 +208,20 @@ QUOTES_ADMIN_PATH=quotes
 
 #### 태스크
 
-- [ ] `src/app/invoice/[id]/loading.tsx` — 스켈레톤 로딩 UI
+- [x] `src/app/invoice/[id]/loading.tsx` — 스켈레톤 로딩 UI
   - 견적서 레이아웃 형태의 Skeleton
   - shadcn/ui `Skeleton` 컴포넌트 활용
 
-- [ ] `src/app/invoice/[id]/error.tsx` — 에러 경계
-  - Notion API 장애 시 사용자 친화적 메시지
-  - 새로고침 버튼
+- [x] `src/app/invoice/[id]/error.tsx` — 에러 경계
+  - Notion API 장애 시 사용자 친화적 메시지 (`AlertCircle` 아이콘)
+  - 새로고침(다시 시도) 버튼
 
-- [ ] `src/app/invoice/[id]/page.tsx` — OG 메타태그 추가
+- [x] `src/app/invoice/[id]/page.tsx` — OG 메타태그 추가
   - `generateMetadata()` 에 `openGraph` 속성 추가
-  - 견적서 번호, 클라이언트명 반영
+  - 견적서 번호, 클라이언트명 반영, 정규 URL 포함
 
-- [ ] 전 뷰포트 레이아웃 검증
-  - 모바일 375px, 태블릿 768px, 데스크톱 1280px
+- [x] 전 뷰포트 레이아웃 검증
+  - 모바일 375px, 태블릿 768px, 데스크톱 1280px (스크린샷 확인 완료)
 
 ---
 
@@ -262,7 +264,7 @@ QUOTES_ADMIN_PATH=quotes
 | Phase 0: 환경 설정 및 Notion 연동 | 2026-02-22 | ✅ 완료 | Notion SDK 연동, `getInvoiceById()` 구현 |
 | Phase 1: 견적서 조회 페이지 | 2026-02-22 | ✅ 완료 | 견적서 웹 뷰어 컴포넌트 완성 |
 | Phase 2: PDF 다운로드 | 2026-02-22 | ✅ 완료 | PDF 생성 API 및 다운로드 버튼 |
-| Phase 3: 반응형 UX 완성 | 2026-03-14 ~ 2026-03-17 | 🔲 대기 | 로딩/에러 UI, OG 태그 |
+| Phase 3: 반응형 UX 완성 | 2026-02-22 | ✅ 완료 | 로딩/에러 UI, OG 태그, 뷰포트 검증 |
 | Phase 4: 배포 | 2026-03-18 ~ 2026-03-20 | 🔲 대기 | Vercel 배포, E2E 테스트 |
 
 ---
@@ -290,9 +292,10 @@ QUOTES_ADMIN_PATH=quotes
     ├── NanumGothic-Regular.ttf               (2MB, 한국어 완전 지원)
     └── NanumGothic-Bold.ttf                  (2MB)
 
-🔲 미구현 (Phase 3)
-├── src/app/invoice/[id]/loading.tsx
-└── src/app/invoice/[id]/error.tsx
+✅ 완료 (Phase 3)
+├── src/app/invoice/[id]/loading.tsx               (스켈레톤 로딩 UI)
+├── src/app/invoice/[id]/error.tsx                 (에러 경계, 재시도 버튼)
+└── src/app/invoice/[id]/page.tsx                  (OG 메타태그 추가)
 ```
 
 ---
@@ -353,3 +356,4 @@ QUOTES_ADMIN_PATH=quotes
 | v1.1 | 2026-02-22 | Phase 0·1 완료 반영. 환경 변수명 확정, @notionhq/client v2 고정, 보류 Q1·Q2·Q5 결정 처리 |
 | v1.2 | 2026-02-22 | 발행자 DB 설정 완료 (Q3 결정). 테스트 데이터 삽입 완료. ROADMAP에 발행자 DB 스키마 반영 |
 | v1.3 | 2026-02-22 | Phase 2 구현 완료 반영. Sender 타입·getSenderInfo 추가. NanumGothic TTF 폰트 채택. PDF API Route·PDFDownloadButton·InvoiceView 통합 완료. 알려진 이슈(PDF 404, dev 오버레이) 기록 |
+| v1.4 | 2026-02-22 | Phase 3 구현 완료 반영. loading.tsx(스켈레톤)·error.tsx(에러 경계) 추가. page.tsx에 openGraph 메타태그 적용. 3개 뷰포트(375/768/1280px) 스크린샷 검증 완료. 성공 지표 전체 달성 |
