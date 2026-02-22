@@ -1,7 +1,7 @@
 # 노션 기반 견적서 관리 시스템 개발 로드맵
 
 > 마지막 업데이트: 2026-02-22
-> 버전: v1.2
+> 버전: v1.3
 
 ---
 
@@ -14,9 +14,9 @@
 ## 성공 지표 (MVP 기준)
 
 - [x] 잘못된 `notionPageId` 접근 시 커스텀 404 페이지 표시
-- [~] 노션 데이터베이스에서 견적서 데이터 정상 조회 (구현 완료 / 실 브라우저 테스트 필요)
-- [~] `/invoice/[notionPageId]` 경로로 접근 시 견적서 웹 렌더링 정상 동작 (구현 완료 / 실 브라우저 테스트 필요)
-- [ ] PDF 다운로드 버튼 클릭 시 10초 이내 PDF 파일 생성 및 다운로드
+- [x] 노션 데이터베이스에서 견적서 데이터 정상 조회
+- [x] `/invoice/[notionPageId]` 경로로 접근 시 견적서 웹 렌더링 정상 동작
+- [x] PDF 다운로드 버튼 클릭 시 10초 이내 PDF 파일 생성 및 다운로드
 - [ ] 모바일(375px), 태블릿(768px), 데스크톱(1280px) 3가지 뷰포트에서 레이아웃 정상 표시
 
 ---
@@ -144,7 +144,7 @@ QUOTES_ADMIN_PATH=quotes
 
 ---
 
-### Phase 2: PDF 다운로드 구현 (1주)
+### Phase 2: PDF 다운로드 구현 ✅ 완료
 
 **목표**: PDF 다운로드 버튼 클릭 시 견적서가 PDF 파일로 즉시 다운로드된다.
 
@@ -156,31 +156,42 @@ QUOTES_ADMIN_PATH=quotes
 
 #### 태스크
 
-- [ ] `@react-pdf/renderer` 패키지 설치
-  - `npm install @react-pdf/renderer`
-  - TypeScript 타입 패키지 확인
+- [x] `@react-pdf/renderer` 패키지 설치
+  - `npm install @react-pdf/renderer` 완료
 
-- [ ] PDF 폰트 설정 및 한국어 깨짐 방지 (**Phase 2 최우선 선행 작업**)
-  - `public/fonts/` 디렉토리에 한국어 폰트 저장 (Noto Sans KR 권장)
-  - `Font.register()` 로 폰트 등록 후 렌더링 테스트
+- [x] PDF 폰트 설정 및 한국어 깨짐 방지
+  - `public/fonts/NanumGothic-Regular.ttf`, `NanumGothic-Bold.ttf` 배치
+  - Noto Sans KR 대신 **NanumGothic TTF** 사용 (woff 미지원, 단일 파일 구조)
+  - `Font.register()` 로 폰트 등록 완료
 
-- [ ] `components/invoice/InvoicePDF.tsx` — PDF 템플릿 컴포넌트
-  - `Document`, `Page`, `View`, `Text`, `StyleSheet` 활용
-  - 견적서 헤더 (발행자 정보, 클라이언트 정보)
-  - 항목 테이블, 합계 섹션
-  - A4 사이즈 레이아웃
+- [x] `types/invoice.ts` — `Sender` 인터페이스 추가
+  - 발행자 정보 (회사명, 대표자, 사업자번호, 주소, 연락처, 계좌정보)
 
-- [ ] `src/app/api/invoice/[id]/pdf/route.ts` — PDF 생성 API
-  - `export const runtime = 'nodejs'` 필수 (Edge Runtime 미지원)
-  - `renderToBuffer()` 로 PDF 바이너리 생성
-  - `Content-Type: application/pdf` + `Content-Disposition: attachment` 헤더
+- [x] `lib/notion.ts` — `getSenderInfo()` 구현
+  - `NOTION_SENDER_DB_ID` DB 첫 번째 행을 발행자 정보로 조회
+  - `extractEmail()`, `mapToSender()` 헬퍼 추가
+  - `validation_error`, `invalid_request_url`, `unauthorized` 에러 코드 추가 처리 (커스텀 404 트리거)
 
-- [ ] `components/invoice/PDFDownloadButton.tsx` — 다운로드 버튼
-  - `'use client'` 지시어
-  - 클릭 → `/api/invoice/[id]/pdf` fetch → Blob → `<a>` 다운로드
-  - 로딩 스피너 표시
+- [x] `components/invoice/InvoicePDF.tsx` — PDF 템플릿 컴포넌트
+  - A4 레이아웃: 제목 → 발행일/견적번호 → 발행자+수신자 박스 → 항목 테이블 → 합계(공급가액/부가세/합계금액) → 계좌정보
+  - `Invoice` + `Sender` props 수신
 
-- [ ] `InvoiceView.tsx` 에 `PDFDownloadButton` 통합
+- [x] `src/app/api/invoice/[id]/pdf/route.tsx` — PDF 생성 API
+  - `export const runtime = 'nodejs'` 선언
+  - `Promise.all([getInvoiceById, getSenderInfo])` 병렬 조회
+  - `renderToBuffer()` → `Uint8Array` 변환 → Response 반환
+  - RFC 5987 파일명 인코딩 (`filename*=UTF-8''...`)
+  - 404 / 500 에러 처리
+
+- [x] `components/invoice/PDFDownloadButton.tsx` — 다운로드 버튼
+  - `'use client'`, `fetch → blob → URL.createObjectURL → click → revokeObjectURL`
+  - 로딩 중 Loader2 스피너 + 버튼 비활성화
+
+- [x] `InvoiceView.tsx` 에 `PDFDownloadButton` 통합 (`print:hidden`)
+
+#### 알려진 이슈
+
+- **dev mode 오버레이**: Next.js 16 + Turbopack에서 `notFound()` 호출 시 `Performance.measure` 오류 오버레이 발생 — Turbopack 내부 버그, 프로덕션 무관
 
 ---
 
@@ -250,7 +261,7 @@ QUOTES_ADMIN_PATH=quotes
 |-------|------|------|-------------|
 | Phase 0: 환경 설정 및 Notion 연동 | 2026-02-22 | ✅ 완료 | Notion SDK 연동, `getInvoiceById()` 구현 |
 | Phase 1: 견적서 조회 페이지 | 2026-02-22 | ✅ 완료 | 견적서 웹 뷰어 컴포넌트 완성 |
-| Phase 2: PDF 다운로드 | 2026-03-07 ~ 2026-03-13 | 🔲 대기 | PDF 생성 API 및 다운로드 버튼 |
+| Phase 2: PDF 다운로드 | 2026-02-22 | ✅ 완료 | PDF 생성 API 및 다운로드 버튼 |
 | Phase 3: 반응형 UX 완성 | 2026-03-14 ~ 2026-03-17 | 🔲 대기 | 로딩/에러 UI, OG 태그 |
 | Phase 4: 배포 | 2026-03-18 ~ 2026-03-20 | 🔲 대기 | Vercel 배포, E2E 테스트 |
 
@@ -259,10 +270,10 @@ QUOTES_ADMIN_PATH=quotes
 ## 파일 현황
 
 ```
-✅ 완료
-├── lib/notion.ts                              (Notion 클라이언트 + API 함수)
+✅ 완료 (Phase 0~1)
+├── lib/notion.ts                              (Notion 클라이언트 + API 함수, getSenderInfo 포함)
 ├── lib/helpers.ts                             (formatKRW, formatDate)
-├── types/invoice.ts                           (Invoice, InvoiceItem 타입)
+├── types/invoice.ts                           (Invoice, InvoiceItem, Sender 타입)
 ├── src/app/invoice/[id]/page.tsx
 ├── src/app/invoice/[id]/not-found.tsx
 ├── src/app/api/invoice/[id]/route.ts
@@ -271,11 +282,13 @@ QUOTES_ADMIN_PATH=quotes
 ├── components/invoice/InvoiceItemsTable.tsx
 └── components/invoice/InvoiceSummary.tsx
 
-🔲 미구현 (Phase 2)
-├── src/app/api/invoice/[id]/pdf/route.ts
-├── components/invoice/InvoicePDF.tsx
-├── components/invoice/PDFDownloadButton.tsx
-└── public/fonts/                              (한국어 폰트)
+✅ 완료 (Phase 2)
+├── src/app/api/invoice/[id]/pdf/route.tsx     (PDF 생성 API)
+├── components/invoice/InvoicePDF.tsx          (A4 PDF 템플릿)
+├── components/invoice/PDFDownloadButton.tsx   (클라이언트 다운로드 버튼)
+└── public/fonts/
+    ├── NanumGothic-Regular.ttf               (2MB, 한국어 완전 지원)
+    └── NanumGothic-Bold.ttf                  (2MB)
 
 🔲 미구현 (Phase 3)
 ├── src/app/invoice/[id]/loading.tsx
@@ -339,3 +352,4 @@ QUOTES_ADMIN_PATH=quotes
 | v1.0 | 2026-02-21 | 최초 작성 (PRD v1.0 기반) |
 | v1.1 | 2026-02-22 | Phase 0·1 완료 반영. 환경 변수명 확정, @notionhq/client v2 고정, 보류 Q1·Q2·Q5 결정 처리 |
 | v1.2 | 2026-02-22 | 발행자 DB 설정 완료 (Q3 결정). 테스트 데이터 삽입 완료. ROADMAP에 발행자 DB 스키마 반영 |
+| v1.3 | 2026-02-22 | Phase 2 구현 완료 반영. Sender 타입·getSenderInfo 추가. NanumGothic TTF 폰트 채택. PDF API Route·PDFDownloadButton·InvoiceView 통합 완료. 알려진 이슈(PDF 404, dev 오버레이) 기록 |
