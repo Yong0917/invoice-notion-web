@@ -42,6 +42,28 @@ export interface Invoice {
   status: InvoiceStatus
 }
 
+// ─── 발행자(Sender) ───────────────────────────────────────────────────
+export interface Sender {
+  /** 회사명 */
+  company_name: string
+  /** 대표자명 */
+  representative: string
+  /** 사업자등록번호 */
+  business_number: string
+  /** 주소 */
+  address: string
+  /** 전화번호 */
+  phone: string
+  /** 이메일 */
+  email: string
+  /** 은행명 */
+  bank_name: string
+  /** 계좌번호 */
+  account_number: string
+  /** 예금주 */
+  account_holder: string
+}
+
 // ─── 노션 프로퍼티 매핑용 타입 ───────────────────────────────────────
 // 노션 API 응답을 Invoice 타입으로 변환할 때 사용하는 중간 타입
 // TODO: @notionhq/client 설치 후 실제 노션 프로퍼티 타입으로 교체

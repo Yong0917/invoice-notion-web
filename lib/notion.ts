@@ -10,7 +10,7 @@
 import { Client } from '@notionhq/client'
 import type { PageObjectResponse } from '@notionhq/client/build/src/api-endpoints'
 import type { QueryDatabaseResponse } from '@notionhq/client/build/src/api-endpoints'
-import type { Invoice, InvoiceItem, InvoiceStatus } from '@/types/invoice'
+import type { Invoice, InvoiceItem, InvoiceStatus, Sender } from '@/types/invoice'
 
 // ─── 환경 변수 검증 ──────────────────────────────────────────────────
 function getRequiredEnv(key: string): string {
@@ -69,6 +69,12 @@ function extractFormulaNumber(props: NotionProperties, key: string): number {
   return prop.formula.number ?? 0
 }
 
+function extractEmail(props: NotionProperties, key: string): string {
+  const prop = props[key]
+  if (prop?.type !== 'email') return ''
+  return prop.email ?? ''
+}
+
 // ─── 노션 페이지 → 도메인 타입 변환 ──────────────────────────────────
 function mapToInvoiceItem(page: PageObjectResponse): InvoiceItem {
   const props = page.properties
@@ -92,6 +98,21 @@ function mapToInvoice(page: PageObjectResponse, items: InvoiceItem[]): Invoice {
     total_amount: extractNumber(props, '합계금액'),
     status: extractSelect(props, '상태') as InvoiceStatus,
     items,
+  }
+}
+
+function mapToSender(page: PageObjectResponse): Sender {
+  const props = page.properties
+  return {
+    company_name: extractText(props, '회사명'),
+    representative: extractText(props, '대표자명'),
+    business_number: extractText(props, '사업자등록번호'),
+    address: extractText(props, '주소'),
+    phone: extractText(props, '전화번호'),
+    email: extractEmail(props, '이메일'),
+    bank_name: extractText(props, '은행명'),
+    account_number: extractText(props, '계좌번호'),
+    account_holder: extractText(props, '예금주'),
   }
 }
 
@@ -125,17 +146,36 @@ export async function getInvoiceById(pageId: string): Promise<Invoice | null> {
 
     return mapToInvoice(page, items)
   } catch (error: unknown) {
-    // 존재하지 않는 페이지 또는 접근 권한 없음
+    // 페이지 없음, 접근 권한 없음, 잘못된 ID 형식 → 모두 null 반환 (custom not-found 트리거)
     if (
       typeof error === 'object' &&
       error !== null &&
       'code' in error &&
-      error.code === 'object_not_found'
+      ['object_not_found', 'validation_error', 'invalid_request_url', 'unauthorized'].includes(
+        error.code as string
+      )
     ) {
       return null
     }
     throw error
   }
+}
+
+/**
+ * 발행자 정보를 조회합니다. (DB 첫 번째 행 고정)
+ */
+export async function getSenderInfo(): Promise<Sender | null> {
+  const client = getNotionClient()
+
+  const res = await client.databases.query({
+    database_id: getRequiredEnv('NOTION_SENDER_DB_ID'),
+    page_size: 1,
+  })
+
+  const page = res.results.find((p): p is PageObjectResponse => 'properties' in p)
+  if (!page) return null
+
+  return mapToSender(page)
 }
 
 /**
