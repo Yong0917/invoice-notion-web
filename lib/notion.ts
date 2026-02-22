@@ -179,6 +179,21 @@ export async function getSenderInfo(): Promise<Sender | null> {
 }
 
 /**
+ * 견적서 상태를 변경합니다. (관리자 전용)
+ * @param pageId 노션 페이지 ID
+ * @param status 변경할 상태 ('pending' | 'approved' | 'rejected')
+ */
+export async function updateInvoiceStatus(pageId: string, status: InvoiceStatus): Promise<void> {
+  const client = getNotionClient()
+  await client.pages.update({
+    page_id: pageId,
+    properties: {
+      '상태': { select: { name: status } },
+    },
+  })
+}
+
+/**
  * 견적서 전체 목록을 조회합니다. (관리자 화면용)
  */
 export async function getInvoiceList(): Promise<Invoice[]> {
