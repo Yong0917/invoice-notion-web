@@ -1,7 +1,7 @@
 # 노션 기반 견적서 관리 시스템 고도화 로드맵
 
 > 마지막 업데이트: 2026-02-22
-> 버전: v2.0
+> 버전: v2.1
 > 기준 문서: docs/roadmaps/ROADMAP_v1.md (MVP 완료 기준)
 
 ---
@@ -14,7 +14,7 @@ MVP(Phase 0~4) 완료를 기준으로, 본 문서는 관리 기능, 자동화, �
 
 ---
 
-## MVP 완료 현황 (Phase 0~4)
+## 완료 현황 (Phase 0~5)
 
 | Phase | 내용 | 완료일 | 주요 산출물 |
 |-------|------|--------|-------------|
@@ -23,24 +23,42 @@ MVP(Phase 0~4) 완료를 기준으로, 본 문서는 관리 기능, 자동화, �
 | Phase 2 | PDF 다운로드 구현 | 2026-02-22 | `InvoicePDF`, `PDFDownloadButton`, `/api/invoice/[id]/pdf` |
 | Phase 3 | 반응형 레이아웃 및 UX 완성 | 2026-02-22 | `loading.tsx`, `error.tsx`, OG 메타태그, 375/768/1280px 검증 |
 | Phase 4 | 배포 및 운영 준비 | 2026-02-22 | `next.config.ts` 최적화, 프로덕션 빌드, E2E 테스트 통과 |
+| Phase 5 | 관리 기능 | 2026-02-22 | `auth.ts`, `AdminHeader`, `InvoiceListTable`, `StatusChangeButton`, `/api/admin/invoice/[id]/status` |
 
 ### 현재 라우트 구조
 
 ```
 src/app/
-├── page.tsx                          # 홈 (서비스 소개)
-├── invoice/
-│   └── [id]/
-│       ├── page.tsx                  # 견적서 조회 페이지
-│       ├── loading.tsx               # 스켈레톤 UI
-│       ├── error.tsx                 # 에러 경계
-│       └── not-found.tsx             # 커스텀 404
+├── layout.tsx                        # 루트 레이아웃 (HTML, body, Providers만)
+├── (public)/                         # Header/Footer 포함 레이아웃
+│   ├── layout.tsx
+│   ├── page.tsx                      # 홈 (서비스 소개)
+│   ├── login/
+│   │   └── page.tsx                  # 관리자 로그인 페이지
+│   └── invoice/
+│       └── [id]/
+│           ├── page.tsx              # 견적서 조회 페이지
+│           ├── loading.tsx           # 스켈레톤 UI
+│           ├── error.tsx             # 에러 경계
+│           └── not-found.tsx         # 커스텀 404
+├── (admin)/                          # AdminHeader만 포함 레이아웃
+│   ├── layout.tsx
+│   └── admin/
+│       └── page.tsx                  # 관리자 대시보드
 └── api/
-    └── invoice/
-        └── [id]/
-            ├── route.ts              # GET /api/invoice/[id]
-            └── pdf/
-                └── route.tsx         # GET /api/invoice/[id]/pdf
+    ├── auth/
+    │   └── [...nextauth]/
+    │       └── route.ts              # NextAuth 핸들러
+    ├── invoice/
+    │   └── [id]/
+    │       ├── route.ts              # GET /api/invoice/[id]
+    │       └── pdf/
+    │           └── route.tsx         # GET /api/invoice/[id]/pdf
+    └── admin/
+        └── invoice/
+            └── [id]/
+                └── status/
+                    └── route.ts      # PATCH /api/admin/invoice/[id]/status
 ```
 
 ### 현재 환경 변수
@@ -52,13 +70,18 @@ NOTION_QUOTE_ITEM_DB_ID=...
 NOTION_SENDER_DB_ID=...
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 QUOTES_ADMIN_PATH=quotes
+
+# Phase 5 추가
+AUTH_SECRET=...
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD_HASH=\$2b\$12\$...   # bcrypt 해시 ($는 \$로 이스케이프)
 ```
 
 ---
 
 ## 성공 지표 (고도화 목표)
 
-- [ ] 관리자가 웹 UI에서 견적서 목록 조회, 상태 변경, 검색이 가능하다
+- [x] 관리자가 웹 UI에서 견적서 목록 조회, 상태 변경, 검색이 가능하다
 - [ ] 견적서 발행 시 클라이언트에게 이메일이 자동으로 발송된다
 - [ ] 유효기간 만료 D-3, D-1 시점에 알림 이메일이 자동 발송된다
 - [ ] 클라이언트가 견적서를 열람했는지 관리자가 확인할 수 있다
@@ -84,16 +107,17 @@ QUOTES_ADMIN_PATH=quotes
 
 ---
 
-### Phase 5: 관리 기능 (예상 3주)
+### Phase 5: 관리 기능 ✅ 완료 (2026-02-22)
 
 **목표**: 관리자가 웹 UI에서 견적서를 관리할 수 있다. Notion 앱에 들어가지 않고도 상태 변경, 검색, 목록 조회가 가능하다.
 
 **완료 기준**:
-- 관리자 로그인 성공 시 `/admin` 대시보드 접근 가능
-- 비로그인 상태에서 `/admin` 접근 시 로그인 페이지로 리다이렉트
-- 견적서 목록에서 상태 필터(전체/대기중/승인/거절) 및 날짜 범위 필터 동작
-- 견적서 상태 변경(승인/거절) 후 Notion DB에 반영 확인
-- 견적서 번호 또는 고객명으로 검색 동작
+- [x] 관리자 로그인 성공 시 `/admin` 대시보드 접근 가능
+- [x] 비로그인 상태에서 `/admin` 접근 시 로그인 페이지로 리다이렉트
+- [x] 견적서 목록에서 상태 필터(전체/대기중/승인/거절) 동작
+- [ ] 날짜 범위 필터 동작 — **미구현** (클라이언트 사이드 필터링 범위에서 제외됨)
+- [x] 견적서 상태 변경(승인/거절) 후 Notion DB에 반영 확인
+- [x] 견적서 번호 또는 고객명으로 검색 동작
 
 #### 신규 환경 변수
 
@@ -126,61 +150,63 @@ npm install @types/bcryptjs -D
 
 **5-1. NextAuth.js 인증 기반 구축**
 
-- [ ] `npm install next-auth@beta bcryptjs @types/bcryptjs` 패키지 설치 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
-- [ ] `auth.ts` (프로젝트 루트) — NextAuth 설정 파일 생성 | 담당: 풀스택 | 예상: 1d | 우선순위: 빨강
+- [x] `npm install next-auth@beta bcryptjs @types/bcryptjs` 패키지 설치 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+- [x] `auth.ts` (프로젝트 루트) — NextAuth 설정 파일 생성 | 담당: 풀스택 | 예상: 1d | 우선순위: 빨강
   - Credentials Provider 설정 (이메일 + 비밀번호)
   - `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` 환경 변수로 단일 관리자 계정 검증
   - `bcryptjs.compare()` 로 패스워드 해시 비교
   - JWT 세션 전략 사용 (`strategy: 'jwt'`)
-- [ ] `src/app/api/auth/[...nextauth]/route.ts` — NextAuth App Router 핸들러 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
-- [ ] `middleware.ts` (프로젝트 루트) — `/admin/**` 경로 인증 미들웨어 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
-  - 미인증 시 `/login`으로 리다이렉트
+- [x] `src/app/api/auth/[...nextauth]/route.ts` — NextAuth App Router 핸들러 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+- [x] `src/middleware.ts` — `/admin/**` 경로 인증 미들웨어 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+  - 미인증 시 `/login`으로 리다이렉트 (callbackUrl 저장)
   - `/login` 페이지는 보호 대상에서 제외
-- [ ] `src/app/login/page.tsx` — 로그인 페이지 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - **주의**: `src` 디렉토리 사용 시 반드시 `src/middleware.ts`에 위치 (루트는 무시됨)
+- [x] `src/app/(public)/login/page.tsx` — 로그인 페이지 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
   - 이메일 + 비밀번호 폼 (shadcn/ui `Input`, `Button`)
   - 로그인 실패 시 에러 메시지 표시
   - 로그인 성공 시 `/admin`으로 리다이렉트
-- [ ] `.env.local` 및 `.env.example`에 `AUTH_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` 추가 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+- [x] `.env.local` 및 `.env.example`에 `AUTH_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` 추가 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+  - **주의**: `.env.local`에서 bcrypt 해시의 `$`는 `\$`로 이스케이프 필요
 
 **5-2. 관리자 레이아웃 및 대시보드**
 
-- [ ] `src/app/admin/layout.tsx` — 관리자 레이아웃 (사이드바 또는 탑바) | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
-  - 로그아웃 버튼 (`signOut()` 호출)
+- [x] `src/app/(admin)/layout.tsx` — 관리자 레이아웃 (탑바) | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - `AdminHeader` 컴포넌트 (`components/admin/AdminHeader.tsx`)
+  - 로그아웃 버튼 (`signOut()` 호출, callbackUrl: '/login')
   - 현재 관리자 이메일 표시
-- [ ] `src/app/admin/page.tsx` — 견적서 목록 대시보드 | 담당: 풀스택 | 예상: 2d | 우선순위: 빨강
+- [x] `src/app/(admin)/admin/page.tsx` — 견적서 목록 대시보드 | 담당: 풀스택 | 예상: 2d | 우선순위: 빨강
   - `getInvoiceList()` 서버 컴포넌트 호출
   - 상태 요약 카드 (전체/대기중/승인/거절 건수)
-  - 최근 발행 견적서 5건 미리보기
+  - `InvoiceFilters` + `InvoiceListTable` 통합
 
 **5-3. 견적서 목록 및 필터링**
 
-- [ ] `components/admin/InvoiceListTable.tsx` — 견적서 목록 테이블 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 빨강
-  - 컬럼: 견적번호, 고객명, 발행일, 유효기간, 합계금액, 상태, 액션(상세/상태변경)
+- [x] `components/admin/InvoiceListTable.tsx` — 견적서 목록 테이블 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 빨강
+  - 컬럼: 견적번호, 고객명, 발행일, 유효기간, 합계금액, 상태, 액션(상태변경)
   - shadcn/ui `Table` 컴포넌트 활용
   - 견적서 번호 클릭 시 `/invoice/[id]` 새 탭으로 이동
-- [ ] `components/admin/InvoiceFilters.tsx` — 검색 및 필터 UI | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
-  - 고객명/견적번호 텍스트 검색 인풋
+  - 클라이언트 사이드 필터링 (searchParams.q, searchParams.status 기반)
+- [x] `components/admin/InvoiceFilters.tsx` — 검색 및 필터 UI | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
+  - 고객명/견적번호 텍스트 검색 인풋 (300ms 디바운스)
   - 상태 필터 탭 (전체 / 대기중 / 승인 / 거절)
-  - 발행일 날짜 범위 피커 (shadcn/ui `Calendar` + `Popover`)
-  - URL 쿼리 파라미터(`?status=&q=&from=&to=`)로 필터 상태 동기화
-- [ ] `lib/notion.ts` — `searchInvoices(params)` 함수 추가 | 담당: 백엔드 | 예상: 1d | 우선순위: 노랑
-  - Notion `databases.query()` filter 조합 (status select + 날짜 범위)
-  - 텍스트 검색은 Notion API가 미지원이므로 `getInvoiceList()` 결과를 클라이언트에서 필터링
+  - URL 쿼리 파라미터(`?status=&q=`)로 필터 상태 동기화
+- [ ] 발행일 날짜 범위 피커 (shadcn/ui `Calendar` + `Popover`) — **미구현** (Phase 6 이전에 추가 가능)
+- [ ] `lib/notion.ts` — `searchInvoices(params)` 함수 — **불필요**: 클라이언트 사이드 필터링으로 대체 (Notion API 텍스트 검색 미지원)
 
 **5-4. 견적서 상태 변경**
 
-- [ ] `lib/notion.ts` — `updateInvoiceStatus(pageId, status)` 함수 추가 | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+- [x] `lib/notion.ts` — `updateInvoiceStatus(pageId, status)` 함수 추가 | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
   - `pages.update()` PATCH 호출로 `status` select 프로퍼티 변경
   - 유효한 상태값(`pending` / `approved` / `rejected`) 검증
-- [ ] `src/app/api/admin/invoice/[id]/status/route.ts` — 상태 변경 API | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+- [x] `src/app/api/admin/invoice/[id]/status/route.ts` — 상태 변경 API | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
   - PATCH 핸들러 구현
   - 세션 인증 검증 (`auth()` 호출, 미인증 시 401 반환)
   - 요청 body에서 `status` 값 추출 및 `updateInvoiceStatus()` 호출
-- [ ] `components/admin/StatusChangeButton.tsx` — 상태 변경 버튼 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+- [x] `components/admin/StatusChangeButton.tsx` — 상태 변경 버튼 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
   - 현재 상태 표시 (배지)
   - 드롭다운으로 상태 선택 (shadcn/ui `DropdownMenu`)
   - 변경 중 로딩 상태, 성공/실패 토스트 (sonner)
-  - 낙관적 UI 업데이트 (`useOptimistic`)
+  - 낙관적 UI 업데이트 (로컬 state + 실패 시 롤백)
 
 ---
 
@@ -466,14 +492,14 @@ Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
 | Phase | 내용 | 예상 기간 | 선행 조건 | 주요 기술 도입 |
 |-------|------|-----------|-----------|----------------|
 | Phase 0~4 | MVP 완료 | 2026-02-22 완료 | — | Next.js, Notion SDK, @react-pdf/renderer |
-| Phase 5 | 관리 기능 | 3주 | MVP 완료 | NextAuth.js v5, Notion PATCH API |
+| Phase 5 | 관리 기능 | **2026-02-22 완료** | MVP 완료 | NextAuth.js v5, Notion PATCH API |
 | Phase 6 | 자동화 | 3주 | Phase 5 완료 | Resend, Vercel Cron Jobs |
 | Phase 7-a | 다중 PDF 템플릿 | 1~2주 | MVP 완료 | — |
 | Phase 7-b | 전자 서명 | 2~3주 | Phase 5 완료 | react-signature-canvas 또는 외부 API |
 | Phase 7-c | 버전 관리 | 2주 | Phase 5 완료 | Notion pages.create() |
 | Phase 7-d | 다국어 지원 | 2주 | Phase 5 완료, 전체 UI 안정화 | next-intl |
 
-> 1인 개발 기준 총 예상 기간: Phase 5~7 전체 완료 시 약 10~14주 추가 소요
+> 1인 개발 기준 총 예상 기간: Phase 6~7 전체 완료 시 약 8~11주 추가 소요
 
 ---
 
@@ -495,3 +521,4 @@ Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
 | 버전 | 날짜 | 변경 내용 |
 |------|------|-----------|
 | v2.0 | 2026-02-22 | 최초 작성 (MVP Phase 0~4 완료 기준, Phase 5~7 고도화 로드맵 정의) |
+| v2.1 | 2026-02-22 | Phase 5 완료 반영: 라우트 구조 업데이트 (route group 도입), 환경변수 이스케이프 주의사항 추가, 태스크 완료 체크 |
