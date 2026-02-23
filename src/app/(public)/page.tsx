@@ -1,4 +1,6 @@
-import { FileText, Search, Download } from 'lucide-react'
+import Link from 'next/link'
+import { FileText, Search, Download, Lock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SITE_CONFIG } from '@/lib/constants'
 
@@ -52,6 +54,16 @@ export default function HomePage() {
             })}
           </div>
         </div>
+      </section>
+
+      {/* 관리자 이동 섹션 */}
+      <section className="pb-12 px-4 text-center">
+        <Button asChild variant="outline" size="sm" className="text-muted-foreground">
+          <Link href="/admin">
+            <Lock className="mr-1.5 h-3.5 w-3.5" />
+            관리자 대시보드
+          </Link>
+        </Button>
       </section>
     </div>
   )
