@@ -421,7 +421,7 @@ export interface Invoice {
 
 ---
 
-### Phase 6: 자동화 (예상 3주)
+### Phase 6: 자동화 ✅ 완료 (2026-02-23)
 
 **목표**: 반복적인 수동 작업(이메일 발송, 만료 알림)을 자동화하여 운영 부담을 줄인다.
 
@@ -463,23 +463,23 @@ npm install resend                  # 이메일 발송 SDK
 
 **6-1. 이메일 발송 기반 구축**
 
-- [ ] `npm install resend` 패키지 설치 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
-- [ ] Resend 계정 생성 및 발신 도메인 인증 (DNS 설정) | 담당: DevOps | 예상: 1d | 우선순위: 빨강
+- [x] `npm install resend` 패키지 설치 (`resend@^6.9.2`) | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+- [x] Resend 계정 생성 및 발신 도메인 인증 (DNS 설정) | 담당: DevOps | 예상: 1d | 우선순위: 빨강
   - SPF, DKIM 레코드 등록
   - `RESEND_API_KEY`, `EMAIL_FROM` 환경 변수 설정
-- [ ] `lib/email.ts` — Resend 클라이언트 초기화 및 이메일 발송 헬퍼 | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+- [x] `lib/email.ts` — Resend 클라이언트 초기화 및 이메일 발송 헬퍼 | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
   - `sendInvoiceEmail(invoice, recipientEmail)` 함수 구현
   - `sendExpiryReminderEmail(invoice, recipientEmail, daysLeft)` 함수 구현
 
 **6-2. 견적서 발송 이메일 템플릿**
 
-- [ ] `components/email/InvoiceEmailTemplate.tsx` — 이메일 HTML 템플릿 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 빨강
+- [x] `components/email/InvoiceEmailTemplate.tsx` — 이메일 HTML 템플릿 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 빨강
   - React 컴포넌트 기반 HTML 이메일 (Resend의 `render()` 함수 활용)
   - 견적서 번호, 고객명, 합계금액, 유효기간, 열람 URL 포함
   - 반응형 이메일 레이아웃 (인라인 스타일 필수)
-- [ ] `components/email/ExpiryReminderEmailTemplate.tsx` — 만료 알림 이메일 템플릿 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
+- [x] `components/email/ExpiryReminderEmailTemplate.tsx` — 만료 알림 이메일 템플릿 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
   - 만료 D-3 / D-1 텍스트 분기 처리
-- [ ] `src/app/api/admin/invoice/[id]/send-email/route.ts` — 이메일 발송 API | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+- [x] `src/app/api/admin/invoice/[id]/send-email/route.ts` — 이메일 발송 API | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
   - POST 핸들러, 세션 인증 검증
   - `getInvoiceById()` 호출로 견적서 데이터 조회
   - `sendInvoiceEmail()` 호출
@@ -487,45 +487,47 @@ npm install resend                  # 이메일 발송 SDK
 
 **6-3. 관리자 UI에 이메일 발송 버튼 추가**
 
-- [ ] `components/admin/SendEmailButton.tsx` — 이메일 발송 버튼 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
+- [x] `components/admin/SendEmailButton.tsx` — 이메일 발송 버튼 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 노랑
   - 클라이언트 이메일 미설정 시 버튼 비활성화 + 툴팁 안내
   - 발송 중 로딩, 성공/실패 토스트
   - 중복 발송 방지 (확인 다이얼로그, shadcn/ui `AlertDialog`)
-- [ ] `src/app/admin/page.tsx` — `SendEmailButton` 목록 테이블에 통합 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 노랑
+- [x] `components/admin/InvoiceListTable.tsx` — `SendEmailButton` 목록 테이블에 통합 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 노랑
+  - *Note: admin/page.tsx 직접 통합이 아닌 InvoiceListTable 컴포넌트 내에 통합됨*
 
 **6-4. 유효기간 만료 알림 Cron Job**
 
-- [ ] `src/app/api/cron/expiry-reminder/route.ts` — Cron Job 핸들러 | 담당: 백엔드 | 예상: 2d | 우선순위: 노랑
+- [x] `src/app/api/cron/expiry-reminder/route.ts` — Cron Job 핸들러 | 담당: 백엔드 | 예상: 2d | 우선순위: 노랑
   - `Authorization: Bearer ${CRON_SECRET}` 헤더 검증
   - `getInvoiceList()` 호출 후 `valid_until` 기준 D-3, D-1 필터링
   - 해당 견적서 클라이언트에게 `sendExpiryReminderEmail()` 호출
   - 오류 발생 시 개별 건 스킵, 전체 결과 로그 반환
-- [ ] `vercel.json` — Cron Job 설정 | 담당: DevOps | 예상: 0.5d | 우선순위: 노랑
+- [x] `vercel.json` — Cron Job 설정 | 담당: DevOps | 예상: 0.5d | 우선순위: 노랑
   ```json
   {
     "crons": [
       {
         "path": "/api/cron/expiry-reminder",
-        "schedule": "0 0 * * *"
+        "schedule": "0 15 * * *"
       }
     ]
   }
   ```
-- [ ] Vercel 대시보드에서 `CRON_SECRET` 환경 변수 설정 | 담당: DevOps | 예상: 0.5d | 우선순위: 노랑
+  - *Note: `0 15 * * *` (UTC 15:00 = KST 00:00 자정) — 한국 자정 기준 실행*
+- [x] Vercel 대시보드에서 `CRON_SECRET` 환경 변수 설정 | 담당: DevOps | 예상: 0.5d | 우선순위: 노랑
 
 **6-5. 클라이언트 열람 여부 트래킹**
 
-- [ ] `src/app/api/invoice/[id]/view/route.ts` — 열람 기록 API | 담당: 백엔드 | 예상: 1d | 우선순위: 초록
+- [x] `src/app/api/invoice/[id]/view/route.ts` — 열람 기록 API | 담당: 백엔드 | 예상: 1d | 우선순위: 초록
   - POST 핸들러 (인증 불필요)
   - Notion DB의 해당 견적서 페이지에 `viewed_at` 날짜 프로퍼티 업데이트
   - 이미 `viewed_at`이 설정된 경우 무시 (최초 열람만 기록)
-- [ ] `lib/notion.ts` — `markInvoiceViewed(pageId)` 함수 추가 | 담당: 백엔드 | 예상: 0.5d | 우선순위: 초록
+- [x] `lib/notion.ts` — `markInvoiceViewed(pageId)` 함수 추가 | 담당: 백엔드 | 예상: 0.5d | 우선순위: 초록
   - `pages.update()` PATCH 호출로 `viewed_at` 날짜 설정
-- [ ] `src/app/invoice/[id]/page.tsx` — 페이지 조회 시 열람 기록 API 호출 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 초록
-  - 서버 컴포넌트에서 `fetch('/api/invoice/[id]/view', { method: 'POST' })` 호출
-  - 비동기로 처리, 실패해도 페이지 렌더링에 영향 없도록 처리
-- [ ] `components/admin/InvoiceListTable.tsx` — 열람 여부 컬럼 추가 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 초록
-  - 열람일시 표시 (미열람 시 "미열람" 배지)
+- [x] `src/app/(public)/invoice/[id]/page.tsx` — 페이지 조회 시 열람 기록 API 호출 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 초록
+  - `viewed_at` 없는 경우에만 fire-and-forget 방식으로 POST 호출
+  - 실패해도 페이지 렌더링에 영향 없도록 `void fetch(...)`로 처리
+- [x] `components/admin/InvoiceListTable.tsx` — 열람 여부 컬럼 추가 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 초록
+  - 열람일시 표시 (미열람 시 "미열람" 배지, `hidden lg:table-cell`)
 
 ---
 
@@ -748,3 +750,4 @@ Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
 | v2.2 | 2026-02-23 | Phase 5.5 추가: 데이터 모델 확장 (견적서 DB 10개 컬럼, 견적항목 DB 3개 컬럼, TypeScript 타입 확장, UI 컴포넌트 5종 수정). Phase 6 데이터 모델 섹션에서 client_email 중복 제거. 전체 일정 요약 및 기술적 의존성 업데이트 |
 | v2.3 | 2026-02-23 | Phase 5.5 완료 반영: 5.5-1~5.5-8 전 태스크 완료. InvoicePDF에서 `item_notes`·`tax_invoice_required` PDF 표시는 미구현으로 주석 처리. 완료 현황 테이블 및 전체 일정 요약 업데이트 |
 | v2.4 | 2026-02-23 | Phase 6 완료 반영: Resend 이메일 발송(`lib/email.ts`, 이메일 템플릿 2종, send-email API), Vercel Cron Job(`vercel.json`, expiry-reminder), 열람 트래킹(`markInvoiceViewed`, view API, invoice 페이지 연동), InvoiceListTable 열람 컬럼 추가 |
+| v2.5 | 2026-02-23 | Phase 6 태스크 체크박스 실제 구현 상태로 동기화. 세부 수정: vercel.json cron 스케줄 `0 15 * * *`(KST 자정) 반영, SendEmailButton 통합 위치를 InvoiceListTable로 명확화, invoice 페이지 열람 트래킹 fire-and-forget 방식 명시 |

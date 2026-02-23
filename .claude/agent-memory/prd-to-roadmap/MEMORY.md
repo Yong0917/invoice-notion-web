@@ -10,7 +10,7 @@
 
 ## 로드맵 파일 구조
 
-- `docs/ROADMAP.md` — 고도화 로드맵 (Phase 5~7), v2.0 기준 (2026-02-22 작성)
+- `docs/ROADMAP.md` — 고도화 로드맵 (Phase 5~7), v2.2 기준 (2026-02-23 업데이트)
 - `docs/roadmaps/ROADMAP_v1.md` — MVP 로드맵 (Phase 0~4), v1.5 완료 기준
 - `docs/PRD.md` — 원본 제품 요구사항 문서
 
@@ -24,19 +24,30 @@
 - `components/invoice/` — InvoiceView, InvoiceHeader, InvoiceItemsTable, InvoiceSummary, InvoicePDF, PDFDownloadButton
 - `types/invoice.ts` — Invoice, InvoiceItem, Sender 타입
 
-## 노션 데이터베이스 구조 (확정)
+## 노션 데이터베이스 구조 (Phase 5.5 확장 예정)
 
 - 발행자 DB (`NOTION_SENDER_DB_ID`): 회사명, 대표자명, 사업자등록번호, 주소, 전화번호, 이메일, 은행명, 계좌번호, 예금주
 - 견적서 DB (`NOTION_QUOTE_DB_ID`): 이름(견적번호), 고객명, 발행일, 유효기간, 합계금액, 상태(select), 항목(relation)
+  - Phase 5.5 추가 예정: 고객 회사명, 고객 담당자명, 프로젝트명, 납기일, 공급가액, 클라이언트 이메일(email타입), 클라이언트 연락처(phone_number타입), 결제 조건, 비고, 세금계산서 발행 여부(checkbox)
 - 견적 항목 DB (`NOTION_QUOTE_ITEM_DB_ID`): 이름(항목명), 수량, 단가, 공급가액(formula), 견적서(relation)
+  - Phase 5.5 추가 예정: 단위(select), 비고(rich_text), 카테고리(select)
 
 ## Phase별 로드맵 패턴 (확정)
 
 - Phase 0~4: MVP 완료 (2026-02-22)
-- Phase 5: 관리 기능 (NextAuth.js v5, Notion PATCH API) — 3주
-- Phase 6: 자동화 (Resend, Vercel Cron Jobs) — 3주
+- Phase 5: 관리 기능 (NextAuth.js v5, Notion PATCH API) — 완료 (2026-02-22)
+- Phase 5.5: 데이터 모델 확장 (Notion DB 스키마 13개 컬럼 추가, TypeScript 타입 확장, UI 5종 수정) — 2주
+- Phase 6: 자동화 (Resend, Vercel Cron Jobs) — 3주 (Phase 5.5 완료 권장, client_email 활용)
 - Phase 7: 고급 기능 — 분할 착수 권장
-  - 7-a 다중 PDF 템플릿 (1~2주), 7-b 전자 서명 (2~3주), 7-c 버전 관리 (2주), 7-d 다국어 (2주)
+  - 7-a 다중 PDF 템플릿 (1~2주, Phase 5.5 완료 후 권장), 7-b 전자 서명 (2~3주), 7-c 버전 관리 (2주), 7-d 다국어 (2주)
+
+## Phase 5.5 핵심 설계 결정
+
+- 신규 필드 전체 optional 선언 → 기존 견적서 하위 호환 유지
+- `supply_amount` 없으면 `items.reduce()`로 fallback 계산 (InvoiceSummary, InvoicePDF 공통)
+- `extractCheckbox()`, `extractPhone()` 헬퍼를 lib/notion.ts에 신규 추가 필요
+- InvoiceSummary의 props 시그니처 변경 (`totalAmount: number` → `invoice: Pick<Invoice, ...>`) → InvoiceView.tsx 동시 수정 필수
+- 5.5-1(DB 스키마)이 가장 선행 — 실제 데이터 없으면 나머지 태스크 검증 불가
 
 ## 기술적 주의사항
 
