@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   },
   infoLine: {
     flexDirection: 'row',
-    marginBottom: 3,
+    marginBottom: 6,
   },
   infoLabel: {
     color: '#6b7280',
@@ -88,6 +88,7 @@ const styles = StyleSheet.create({
   infoValue: {
     flex: 1,
     fontSize: 9,
+    lineHeight: 1.5,
   },
   infoValueBold: {
     flex: 1,
@@ -98,9 +99,12 @@ const styles = StyleSheet.create({
   // 발행 정보 (날짜 등)
   metaRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 24,
+    justifyContent: 'space-between',
     marginBottom: 24,
+  },
+  metaLeft: {
+    flexDirection: 'row',
+    gap: 24,
   },
   metaItem: {
     flexDirection: 'row',
@@ -135,6 +139,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
   },
   colName: { flex: 4 },
+  colUnit: { flex: 1 },
   colQty: { flex: 1, textAlign: 'right' },
   colPrice: { flex: 2, textAlign: 'right' },
   colAmount: { flex: 2, textAlign: 'right' },
@@ -226,8 +231,10 @@ type InvoicePDFProps = {
 }
 
 export function InvoicePDF({ invoice, sender }: InvoicePDFProps) {
-  const tax = Math.round(invoice.total_amount * 0.1)
-  const grandTotal = Math.round(invoice.total_amount * 1.1)
+  const supplyAmount = invoice.supply_amount ?? invoice.total_amount
+  const tax = Math.round(supplyAmount * 0.1)
+  const grandTotal = Math.round(supplyAmount * 1.1)
+  const hasUnit = invoice.items.some((item) => item.unit)
 
   return (
     <Document title={`견적서 ${invoice.invoice_number}`} language="ko">
@@ -236,15 +243,17 @@ export function InvoicePDF({ invoice, sender }: InvoicePDFProps) {
         {/* 제목 */}
         <Text style={styles.title}>견 적 서</Text>
 
-        {/* 발행일 / 유효기간 */}
+        {/* 발행일 / 유효기간 (좌) / 견적번호 (우) */}
         <View style={styles.metaRow}>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>발행일</Text>
-            <Text style={styles.metaValue}>{formatDate(invoice.issue_date)}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>유효기간</Text>
-            <Text style={styles.metaValue}>{formatDate(invoice.valid_until)}</Text>
+          <View style={styles.metaLeft}>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>발행일</Text>
+              <Text style={styles.metaValue}>{formatDate(invoice.issue_date)}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>유효기간</Text>
+              <Text style={styles.metaValue}>{formatDate(invoice.valid_until)}</Text>
+            </View>
           </View>
           <View style={styles.metaItem}>
             <Text style={styles.metaLabel}>견적번호</Text>
@@ -288,8 +297,40 @@ export function InvoicePDF({ invoice, sender }: InvoicePDFProps) {
             <Text style={styles.infoBoxTitle}>공급받는자 (수신자)</Text>
             <View style={styles.infoLine}>
               <Text style={styles.infoLabel}>상호</Text>
-              <Text style={styles.infoValueBold}>{invoice.client_name}</Text>
+              <Text style={styles.infoValueBold}>
+                {invoice.client_company ?? invoice.client_name}
+              </Text>
             </View>
+            {invoice.client_contact_name && (
+              <View style={styles.infoLine}>
+                <Text style={styles.infoLabel}>담당자</Text>
+                <Text style={styles.infoValue}>{invoice.client_contact_name}</Text>
+              </View>
+            )}
+            {invoice.client_phone && (
+              <View style={styles.infoLine}>
+                <Text style={styles.infoLabel}>연락처</Text>
+                <Text style={styles.infoValue}>{invoice.client_phone}</Text>
+              </View>
+            )}
+            {invoice.client_email && (
+              <View style={styles.infoLine}>
+                <Text style={styles.infoLabel}>이메일</Text>
+                <Text style={styles.infoValue}>{invoice.client_email}</Text>
+              </View>
+            )}
+            {invoice.project_name && (
+              <View style={styles.infoLine}>
+                <Text style={styles.infoLabel}>프로젝트명</Text>
+                <Text style={styles.infoValue}>{invoice.project_name}</Text>
+              </View>
+            )}
+            {invoice.delivery_date && (
+              <View style={styles.infoLine}>
+                <Text style={styles.infoLabel}>납기일</Text>
+                <Text style={styles.infoValue}>{formatDate(invoice.delivery_date)}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -298,6 +339,7 @@ export function InvoicePDF({ invoice, sender }: InvoicePDFProps) {
           {/* 헤더 */}
           <View style={styles.tableHeader}>
             <Text style={[styles.headerText, styles.colName]}>항목명</Text>
+            {hasUnit && <Text style={[styles.headerText, styles.colUnit]}>단위</Text>}
             <Text style={[styles.headerText, styles.colQty]}>수량</Text>
             <Text style={[styles.headerText, styles.colPrice]}>단가</Text>
             <Text style={[styles.headerText, styles.colAmount]}>금액</Text>
@@ -307,6 +349,9 @@ export function InvoicePDF({ invoice, sender }: InvoicePDFProps) {
           {invoice.items.map((item) => (
             <View key={item.id} style={styles.tableRow}>
               <Text style={[styles.cellText, styles.colName]}>{item.description}</Text>
+              {hasUnit && (
+                <Text style={[styles.cellText, styles.colUnit]}>{item.unit ?? '-'}</Text>
+              )}
               <Text style={[styles.cellText, styles.colQty]}>{item.quantity}</Text>
               <Text style={[styles.cellText, styles.colPrice]}>{formatKRW(item.unit_price)}</Text>
               <Text style={[styles.cellText, styles.colAmount]}>{formatKRW(item.amount)}</Text>
@@ -319,7 +364,7 @@ export function InvoicePDF({ invoice, sender }: InvoicePDFProps) {
           <View style={styles.summaryBox}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>공급가액</Text>
-              <Text style={styles.summaryValue}>{formatKRW(invoice.total_amount)}</Text>
+              <Text style={styles.summaryValue}>{formatKRW(supplyAmount)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>부가세 (10%)</Text>
@@ -331,6 +376,24 @@ export function InvoicePDF({ invoice, sender }: InvoicePDFProps) {
             </View>
           </View>
         </View>
+
+        {/* 결제 조건 / 비고 */}
+        {(invoice.payment_terms || invoice.notes) && (
+          <View style={{ marginBottom: 16, padding: 12, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 4 }}>
+            {invoice.payment_terms && (
+              <View style={{ marginBottom: invoice.notes ? 8 : 0 }}>
+                <Text style={{ fontSize: 9, color: '#6b7280', marginBottom: 3 }}>결제 조건</Text>
+                <Text style={{ fontSize: 9 }}>{invoice.payment_terms}</Text>
+              </View>
+            )}
+            {invoice.notes && (
+              <View>
+                <Text style={{ fontSize: 9, color: '#6b7280', marginBottom: 3 }}>비고</Text>
+                <Text style={{ fontSize: 9 }}>{invoice.notes}</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* 계좌 정보 */}
         {(sender.bank_name || sender.account_number) && (
