@@ -1,7 +1,7 @@
 # 노션 기반 견적서 관리 시스템 고도화 로드맵
 
-> 마지막 업데이트: 2026-02-22
-> 버전: v2.1
+> 마지막 업데이트: 2026-02-23
+> 버전: v2.3
 > 기준 문서: docs/roadmaps/ROADMAP_v1.md (MVP 완료 기준)
 
 ---
@@ -24,6 +24,7 @@ MVP(Phase 0~4) 완료를 기준으로, 본 문서는 관리 기능, 자동화, �
 | Phase 3 | 반응형 레이아웃 및 UX 완성 | 2026-02-22 | `loading.tsx`, `error.tsx`, OG 메타태그, 375/768/1280px 검증 |
 | Phase 4 | 배포 및 운영 준비 | 2026-02-22 | `next.config.ts` 최적화, 프로덕션 빌드, E2E 테스트 통과 |
 | Phase 5 | 관리 기능 | 2026-02-22 | `auth.ts`, `AdminHeader`, `InvoiceListTable`, `StatusChangeButton`, `/api/admin/invoice/[id]/status` |
+| Phase 5.5 | 데이터 모델 확장 | 2026-02-23 | `types/invoice.ts` 신규 필드 13개, `lib/notion.ts` 헬퍼 2개 추가(`extractCheckbox`, `extractPhone`), UI 컴포넌트 5종 수정 |
 
 ### 현재 라우트 구조
 
@@ -210,6 +211,215 @@ npm install @types/bcryptjs -D
 
 ---
 
+### Phase 5.5: 데이터 모델 확장 ✅ 완료 (2026-02-23)
+
+**목표**: 견적서 DB와 견적항목 DB의 컬럼을 확장하여 실무에서 필요한 정보(고객 담당자, 프로젝트명, 납기일, 결제 조건, 비고 등)를 표현할 수 있도록 하고, 변경된 데이터 모델을 TypeScript 타입, Notion 헬퍼, 웹 UI, PDF 컴포넌트 전반에 일관되게 반영한다.
+
+**완료 기준**:
+- [x] Notion DB에 아래 명시된 신규 컬럼이 모두 추가됨
+- [x] `types/invoice.ts`의 `Invoice`, `InvoiceItem` 인터페이스에 신규 필드가 추가됨 (모두 선택 필드로 처리)
+- [x] `lib/notion.ts`의 `mapToInvoiceItem()`, `mapToInvoice()` 함수가 신규 필드를 추출함
+- [x] `InvoiceHeader`에 고객 회사명, 담당자명, 프로젝트명, 납기일, 연락처가 표시됨
+- [x] `InvoiceItemsTable`에 단위, 비고 컬럼이 추가됨 (값이 없으면 컬럼 자체를 숨김)
+- [x] `InvoiceSummary`에서 공급가액/부가세/합계가 별도 필드 기반으로 명확히 분리되고, 결제 조건과 비고가 표시됨
+- [x] `InvoicePDF`에 신규 필드가 반영됨 — *단, `item_notes`·`tax_invoice_required` PDF 표시는 미구현*
+- [x] `InvoiceListTable` 관리자 목록에 프로젝트명, 클라이언트 이메일 컬럼이 추가됨
+- [x] 신규 필드가 모두 선택 사항(optional)으로 처리되어, 기존 견적서가 빈 값으로 표시되어도 UI가 깨지지 않음
+
+#### Notion DB 스키마 변경사항
+
+**견적서 DB (NOTION_QUOTE_DB_ID)에 추가할 컬럼**:
+
+| 속성명 (노션) | 타입 | TypeScript 필드명 | 우선순위 | 설명 |
+|-------------|------|------------------|--------|------|
+| 고객 담당자명 | rich_text | `client_contact_name` | 높음 | 수신 담당자 이름 (예: "홍길동 과장") |
+| 고객 회사명 | rich_text | `client_company` | 높음 | 수신 회사명 (기존 `고객명`과 분리) |
+| 프로젝트명 | rich_text | `project_name` | 높음 | 견적 대상 프로젝트/업무 명칭 |
+| 납기일 | date | `delivery_date` | 높음 | 납품 또는 서비스 완료 예정일 |
+| 비고 | rich_text | `notes` | 중간 | 견적서 하단 특이사항, 조건 등 |
+| 결제 조건 | rich_text | `payment_terms` | 중간 | 예: "계약 시 50%, 납품 시 50%" |
+| 공급가액 | number | `supply_amount` | 높음 | 항목 합계와 일치, 현재 `total_amount` TODO 해소 |
+| 세금계산서 발행 여부 | checkbox | `tax_invoice_required` | 낮음 | 세금계산서 발행 필요 여부 |
+| 클라이언트 이메일 | email | `client_email` | 높음 | Phase 6 이메일 발송에 사용 (Phase 6 선행 추가) |
+| 클라이언트 연락처 | phone_number | `client_phone` | 중간 | 고객 전화번호 |
+
+> 주의: `클라이언트 이메일` 컬럼은 Phase 6 자동화에서도 사용된다. Phase 5.5에서 DB에 추가하고 Phase 6에서는 UI/로직만 추가한다. Phase 6의 `데이터 모델 변경사항` 섹션은 이 컬럼이 이미 추가된 것으로 간주한다.
+
+**견적항목 DB (NOTION_QUOTE_ITEM_DB_ID)에 추가할 컬럼**:
+
+| 속성명 (노션) | 타입 | TypeScript 필드명 | 우선순위 | 설명 |
+|-------------|------|------------------|--------|------|
+| 단위 | select | `unit` | 높음 | 수량 단위 (식, 개, 시간, 일, 월, 건, 세트) |
+| 비고 | rich_text | `item_notes` | 중간 | 항목별 세부 설명 또는 스펙 |
+| 카테고리 | select | `category` | 낮음 | 항목 분류 (개발, 디자인, 기획, 컨설팅, 기타) |
+
+#### TypeScript 타입 변경사항 (`types/invoice.ts`)
+
+```typescript
+// InvoiceItem 추가 필드 (모두 optional)
+export interface InvoiceItem {
+  id: string
+  description: string
+  quantity: number
+  unit_price: number
+  amount: number
+  unit?: string          // 수량 단위 (예: "식", "시간")
+  item_notes?: string    // 항목별 비고
+  category?: string      // 항목 카테고리
+}
+
+// Invoice 추가 필드 (모두 optional)
+export interface Invoice {
+  id: string
+  invoice_number: string
+  client_name: string       // 기존 유지 (고객명 — 하위 호환)
+  client_company?: string   // 신규: 고객 회사명
+  client_contact_name?: string  // 신규: 고객 담당자명
+  client_email?: string     // 신규: 클라이언트 이메일 (Phase 6 선행)
+  client_phone?: string     // 신규: 클라이언트 연락처
+  project_name?: string     // 신규: 프로젝트명
+  issue_date: string
+  valid_until: string
+  delivery_date?: string    // 신규: 납기일
+  items: InvoiceItem[]
+  supply_amount?: number    // 신규: 공급가액 (명시적 필드)
+  total_amount: number      // 기존 유지 (합계금액 — Notion 수기 입력값)
+  payment_terms?: string    // 신규: 결제 조건
+  notes?: string            // 신규: 비고
+  tax_invoice_required?: boolean  // 신규: 세금계산서 발행 여부
+  status: InvoiceStatus
+}
+```
+
+> 설계 결정: `supply_amount`가 존재하는 경우 InvoiceSummary의 공급가액 행에 사용한다. 없으면 기존 방식대로 항목 `amount`의 합산값(`items.reduce(...)`)을 사용한다. `total_amount`는 Notion에 수기 입력된 최종 합계금액으로 유지한다.
+
+#### 태스크
+
+**5.5-1. Notion DB 스키마 확장**
+
+- [x] 견적서 DB(`NOTION_QUOTE_DB_ID`)에 신규 컬럼 10개 추가 | 담당: DevOps/기획 | 예상: 1d | 우선순위: 빨강
+  - 노션 DB 설정에서 컬럼 추가 (순서대로: 고객 회사명, 고객 담당자명, 프로젝트명, 납기일, 공급가액, 클라이언트 이메일, 클라이언트 연락처, 결제 조건, 비고, 세금계산서 발행 여부)
+  - 컬럼 타입을 위 스키마 표와 정확히 일치시킬 것 (email, phone_number 타입 사용)
+  - `단위` select 옵션 추가: 식, 개, 시간, 일, 월, 건, 세트
+  - `카테고리` select 옵션 추가: 개발, 디자인, 기획, 컨설팅, 기타
+- [x] 견적항목 DB(`NOTION_QUOTE_ITEM_DB_ID`)에 신규 컬럼 3개 추가 | 담당: DevOps/기획 | 예상: 0.5d | 우선순위: 빨강
+- [x] 기존 견적서 데이터 일부에 신규 필드 샘플 데이터 입력 (검증용) | 담당: 기획 | 예상: 0.5d | 우선순위: 빨강
+
+**5.5-2. TypeScript 타입 및 Notion 헬퍼 확장**
+
+- [x] `types/invoice.ts` — `Invoice`, `InvoiceItem` 인터페이스에 신규 선택 필드 추가 | 담당: 풀스택 | 예상: 0.5d | 우선순위: 빨강
+  - 위 TypeScript 타입 변경사항의 인터페이스를 그대로 적용
+  - `NotionInvoiceProperties` 중간 타입도 동기화
+- [x] `lib/notion.ts` — 신규 헬퍼 함수 추가 | 담당: 백엔드 | 예상: 0.5d | 우선순위: 빨강
+  - `extractCheckbox(props, key): boolean` 함수 추가 (checkbox 타입 추출)
+  - `extractPhone(props, key): string` 함수 추가 (phone_number 타입 추출)
+- [x] `lib/notion.ts` — `mapToInvoiceItem()` 함수에 신규 필드 매핑 추가 | 담당: 백엔드 | 예상: 0.5d | 우선순위: 빨강
+  - `unit: extractSelect(props, '단위') || undefined`
+  - `item_notes: extractText(props, '비고') || undefined`
+  - `category: extractSelect(props, '카테고리') || undefined`
+- [x] `lib/notion.ts` — `mapToInvoice()` 함수에 신규 필드 매핑 추가 | 담당: 백엔드 | 예상: 1d | 우선순위: 빨강
+  - `client_company`, `client_contact_name`, `project_name`, `delivery_date` 매핑
+  - `supply_amount`, `payment_terms`, `notes`, `tax_invoice_required` 매핑
+  - `client_email`: `extractEmail(props, '클라이언트 이메일') || undefined`
+  - `client_phone`: `extractPhone(props, '클라이언트 연락처') || undefined`
+  - 빈 문자열은 `undefined`로 처리하여 `?.` 조건부 렌더링 활용 가능하게 할 것
+
+**5.5-3. InvoiceHeader 컴포넌트 확장**
+
+- [x] `components/invoice/InvoiceHeader.tsx` — 수신자 정보 섹션 확장 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - `Pick<Invoice, ...>` 타입에 신규 필드 추가: `client_company`, `client_contact_name`, `project_name`, `delivery_date`, `client_phone`
+  - 수신 섹션: `client_company`가 있으면 굵게 표시, `client_contact_name`을 그 아래에 작게 표시
+  - `client_company`와 `client_name` 모두 없으면 `client_name` 표시 (하위 호환 fallback)
+  - 날짜 정보 섹션에 `delivery_date` 추가 (`납기일`, 값이 없으면 행 자체 숨김)
+  - 하단에 `project_name`, `client_phone` 행 조건부 표시 (값이 있을 때만)
+  - 렌더링 예시:
+    ```
+    수신        (주)클라이언트 회사명
+                홍길동 과장
+    프로젝트명  웹사이트 리뉴얼 프로젝트
+    발행일      2026년 2월 23일
+    유효기간    2026년 3월 23일
+    납기일      2026년 4월 30일        ← 값 있을 때만
+    연락처      010-1234-5678          ← 값 있을 때만
+    ```
+
+**5.5-4. InvoiceItemsTable 컴포넌트 확장**
+
+- [x] `components/invoice/InvoiceItemsTable.tsx` — 단위 및 비고 컬럼 추가 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - `items` 배열에서 `unit` 또는 `item_notes`가 하나라도 존재하는지 전체 검사
+  - `hasUnit`: `items.some(item => !!item.unit)` — true이면 단위 컬럼 표시
+  - `hasItemNotes`: `items.some(item => !!item.item_notes)` — true이면 비고 컬럼 표시
+  - 단위 컬럼은 수량 뒤에 위치 (예: "1 식", "40 시간" 형태로 수량과 합쳐서 표시하거나 별도 컬럼)
+  - 비고 컬럼은 항목명 아래 작은 글씨로 표시하거나 별도 컬럼으로 처리
+  - 모바일에서는 단위·비고 컬럼 숨김 처리 (`hidden sm:table-cell`)
+
+**5.5-5. InvoiceSummary 컴포넌트 확장**
+
+- [x] `components/invoice/InvoiceSummary.tsx` — 공급가액 분리 및 신규 섹션 추가 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 빨강
+  - 프로퍼티 시그니처 변경: `totalAmount: number` 대신 `invoice: Pick<Invoice, 'supply_amount' | 'total_amount' | 'items' | 'payment_terms' | 'notes' | 'tax_invoice_required'>` 수신
+  - 공급가액 계산 로직: `supply_amount`가 있으면 사용, 없으면 `items.reduce((sum, item) => sum + item.amount, 0)` 사용
+  - 부가세: 공급가액의 10%
+  - 합계금액: `total_amount` 사용 (Notion 수기 입력값)
+  - `payment_terms`가 있으면 합계금액 아래에 "결제 조건" 행 추가
+  - `tax_invoice_required`가 true이면 "세금계산서 발행" 배지 표시
+  - `notes`가 있으면 Summary 하단에 별도 "비고" 섹션으로 표시
+  - `TODO(Q2)` 주석 제거 (이 태스크 완료 시 해소됨)
+  - **주의**: `InvoiceView.tsx`에서 `InvoiceSummary`에 전달하는 props 변경 필요
+
+**5.5-6. InvoicePDF 컴포넌트 확장**
+
+- [x] `components/invoice/InvoicePDF.tsx` — 신규 필드 반영 | 담당: 프론트엔드 | 예상: 2d | 우선순위: 빨강
+  - [x] 수신자 infoBox에 `client_company`, `client_contact_name`, `client_phone` 행 추가 (값이 있을 때만)
+  - [x] infoBox에 `project_name`, `delivery_date` 행 추가 (값이 있을 때만) — *metaRow 대신 infoBox에 배치*
+  - [x] 항목 테이블에 `unit` 컬럼 추가 (별도 컬럼, PDF 폭 고려하여 flex 비율 재조정)
+  - [ ] 항목 테이블에 `item_notes` 표시 — **미구현** (항목명 아래 두 번째 줄 표시)
+  - [x] summaryBox에서 공급가액 계산 로직을 5.5-5와 동일하게 변경
+  - [x] `payment_terms`, `notes`가 있으면 계좌 정보 위에 별도 섹션 추가
+  - [ ] `tax_invoice_required` PDF 표시 — **미구현** ("세금계산서 발행 요청" 문구)
+
+**5.5-7. 관리자 InvoiceListTable 확장**
+
+- [x] `components/admin/InvoiceListTable.tsx` — 프로젝트명, 클라이언트 이메일 컬럼 추가 | 담당: 프론트엔드 | 예상: 1d | 우선순위: 중간
+  - `프로젝트명` 컬럼: `hidden lg:table-cell` 처리 (데스크탑만 표시)
+  - `클라이언트 이메일` 컬럼: `hidden xl:table-cell` 처리, 이메일 없을 경우 "-" 표시
+  - 검색 필터(`searchParams.q`) 대상에 `project_name`, `client_email` 포함
+    ```typescript
+    inv.project_name?.toLowerCase().includes(q) ||
+    inv.client_email?.toLowerCase().includes(q)
+    ```
+  - 컬럼 수가 늘어나므로 `발행일`, `유효기간` 컬럼의 반응형 breakpoint 재검토 (`hidden md:table-cell` → `hidden lg:table-cell`)
+
+**5.5-8. InvoiceView 래퍼 props 조정**
+
+- [x] `components/invoice/InvoiceView.tsx` — InvoiceSummary 호출부 수정 | 담당: 프론트엔드 | 예상: 0.5d | 우선순위: 빨강
+  - `InvoiceSummary`에 `totalAmount` 단일 숫자 대신 `invoice` 객체(또는 필요한 Pick)를 전달하도록 수정
+  - `InvoiceHeader`에도 신규 필드가 포함된 `invoice` 객체 전달 확인 (이미 전체 객체 전달 중이면 무변경)
+
+#### 리스크
+
+| 리스크 | 영향도 | 발생 가능성 | 완화 전략 |
+|--------|--------|------------|----------|
+| 기존 견적서에 신규 필드 없어 UI 깨짐 | 높음 | 확실 | 모든 신규 필드를 TypeScript에서 optional(`?`)로 선언. 렌더링 시 `?.` 및 조건부 표시 필수 |
+| `supply_amount`와 `total_amount` 불일치 | 중간 | 중간 | `supply_amount`가 없으면 `items.reduce()`로 계산하는 fallback 로직 구현. Notion 입력 가이드 문서화 필요 |
+| PDF 항목 테이블 컬럼 폭 초과 | 중간 | 높음 | `unit` 컬럼 추가 시 A4 폭 내에서 flex 비율 재조정 필수. PDF 실 출력 테스트 필요 |
+| InvoiceSummary props 변경으로 기존 호출부 타입 오류 | 중간 | 확실 | `InvoiceView.tsx` 수정(5.5-8)을 5.5-5 완료 직후 즉시 수행. TypeScript 빌드 오류로 누락 방지 |
+| Notion phone_number 타입 추출 헬퍼 미존재 | 낮음 | 확실 | `extractPhone()` 함수를 5.5-2에서 먼저 추가 (phone_number는 email 타입과 유사하게 처리) |
+
+#### 의존성 순서
+
+```
+5.5-1 (Notion DB 스키마 확장)
+  └─ 5.5-2 (TypeScript 타입 + lib/notion.ts 헬퍼 확장)
+      ├─ 5.5-3 (InvoiceHeader 확장)
+      ├─ 5.5-4 (InvoiceItemsTable 확장)
+      ├─ 5.5-5 (InvoiceSummary 확장)
+      │   └─ 5.5-8 (InvoiceView props 조정) ← 5.5-5 완료 즉시 수행
+      ├─ 5.5-6 (InvoicePDF 확장)
+      └─ 5.5-7 (InvoiceListTable 확장) ← 5.5-2 완료 후 독립적으로 수행 가능
+```
+
+---
+
 ### Phase 6: 자동화 (예상 3주)
 
 **목표**: 반복적인 수동 작업(이메일 발송, 만료 알림)을 자동화하여 운영 부담을 줄인다.
@@ -242,11 +452,11 @@ npm install resend                  # 이메일 발송 SDK
 
 | 속성명 | 타입 | 매핑 필드 | 설명 |
 |--------|------|-----------|------|
-| 클라이언트 이메일 | email | `client_email` | 이메일 발송 대상 |
+| ~~클라이언트 이메일~~ | ~~email~~ | ~~`client_email`~~ | **Phase 5.5에서 이미 추가됨. 이 Phase에서는 Notion DB 추가 불필요** |
 | 열람일시 | date | `viewed_at` | 최초 열람 시간 (ISO 8601) |
 
-`types/invoice.ts`의 `Invoice` 인터페이스에 `client_email`, `viewed_at` 필드 추가.
-`lib/notion.ts`의 `mapToInvoice()` 함수에 신규 필드 매핑 추가.
+`types/invoice.ts`의 `Invoice` 인터페이스에 `viewed_at` 필드 추가 (`client_email`은 Phase 5.5에서 완료).
+`lib/notion.ts`의 `mapToInvoice()` 함수에 `viewed_at` 필드 매핑 추가.
 
 #### 태스크
 
@@ -470,16 +680,27 @@ Phase 5 (관리 기능)
           └─ 상태 변경 API (api/admin/invoice/[id]/status)
               └─ updateInvoiceStatus() in lib/notion.ts
 
-Phase 6 (자동화) — Phase 5 완료 후 시작
+Phase 5.5 (데이터 모델 확장) — Phase 5 완료 후 시작
+  └─ 5.5-1: Notion DB 스키마 확장 (선행 필수 — 실제 데이터 없이 코드 검증 불가)
+      └─ 5.5-2: types/invoice.ts + lib/notion.ts 헬퍼 확장
+          ├─ 5.5-3: InvoiceHeader 확장
+          ├─ 5.5-4: InvoiceItemsTable 확장
+          ├─ 5.5-5: InvoiceSummary 확장
+          │   └─ 5.5-8: InvoiceView props 조정 (즉시 연계)
+          ├─ 5.5-6: InvoicePDF 확장
+          └─ 5.5-7: InvoiceListTable 확장 (독립 병렬 가능)
+
+Phase 6 (자동화) — Phase 5.5 완료 권장 (client_email 필드 활용)
   └─ Resend 도메인 인증 (DevOps 선행)
       ├─ lib/email.ts + 이메일 템플릿 컴포넌트
       │   └─ 이메일 발송 API + SendEmailButton
+      │       (Phase 5.5의 client_email 필드 활용)
       └─ Cron Job (vercel.json + /api/cron/expiry-reminder)
           (Phase 5의 getInvoiceList() 재사용)
   └─ 열람 트래킹 API (Phase 5의 admin UI와 독립적)
 
 Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
-  ├─ 다중 PDF 템플릿 — Phase 0의 InvoicePDF.tsx 기반 확장
+  ├─ 다중 PDF 템플릿 — Phase 5.5의 InvoicePDF.tsx 기반 확장 (신규 필드 반영 후 착수 권장)
   ├─ 전자 서명 — Phase 5의 인증 구조 재사용 (서명 저장 API는 인증 불필요)
   ├─ 버전 관리 — Phase 5의 admin 대시보드에 히스토리 탭 추가
   └─ 다국어 — middleware.ts 수정 필요 (Phase 5와 충돌 가능, 마지막 착수 권장)
@@ -493,13 +714,14 @@ Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
 |-------|------|-----------|-----------|----------------|
 | Phase 0~4 | MVP 완료 | 2026-02-22 완료 | — | Next.js, Notion SDK, @react-pdf/renderer |
 | Phase 5 | 관리 기능 | **2026-02-22 완료** | MVP 완료 | NextAuth.js v5, Notion PATCH API |
-| Phase 6 | 자동화 | 3주 | Phase 5 완료 | Resend, Vercel Cron Jobs |
-| Phase 7-a | 다중 PDF 템플릿 | 1~2주 | MVP 완료 | — |
+| Phase 5.5 | 데이터 모델 확장 | **2026-02-23 완료** | Phase 5 완료 | Notion DB 스키마 확장, TypeScript 타입 업데이트 |
+| Phase 6 | 자동화 | 3주 | Phase 5.5 완료 권장 (client_email 필드 활용) | Resend, Vercel Cron Jobs |
+| Phase 7-a | 다중 PDF 템플릿 | 1~2주 | Phase 5.5 완료 권장 (신규 필드 PDF 반영 선행) | — |
 | Phase 7-b | 전자 서명 | 2~3주 | Phase 5 완료 | react-signature-canvas 또는 외부 API |
 | Phase 7-c | 버전 관리 | 2주 | Phase 5 완료 | Notion pages.create() |
 | Phase 7-d | 다국어 지원 | 2주 | Phase 5 완료, 전체 UI 안정화 | next-intl |
 
-> 1인 개발 기준 총 예상 기간: Phase 6~7 전체 완료 시 약 8~11주 추가 소요
+> 1인 개발 기준 총 예상 기간: Phase 5.5~7 전체 완료 시 약 10~13주 추가 소요
 
 ---
 
@@ -522,3 +744,5 @@ Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
 |------|------|-----------|
 | v2.0 | 2026-02-22 | 최초 작성 (MVP Phase 0~4 완료 기준, Phase 5~7 고도화 로드맵 정의) |
 | v2.1 | 2026-02-22 | Phase 5 완료 반영: 라우트 구조 업데이트 (route group 도입), 환경변수 이스케이프 주의사항 추가, 태스크 완료 체크 |
+| v2.2 | 2026-02-23 | Phase 5.5 추가: 데이터 모델 확장 (견적서 DB 10개 컬럼, 견적항목 DB 3개 컬럼, TypeScript 타입 확장, UI 컴포넌트 5종 수정). Phase 6 데이터 모델 섹션에서 client_email 중복 제거. 전체 일정 요약 및 기술적 의존성 업데이트 |
+| v2.3 | 2026-02-23 | Phase 5.5 완료 반영: 5.5-1~5.5-8 전 태스크 완료. InvoicePDF에서 `item_notes`·`tax_invoice_required` PDF 표시는 미구현으로 주석 처리. 완료 현황 테이블 및 전체 일정 요약 업데이트 |
