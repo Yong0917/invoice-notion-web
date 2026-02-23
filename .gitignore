@@ -45,3 +45,9 @@ next-env.d.ts
 
 # shrimp-task-manager 데이터 (embedded git repo)
 shrimp_data/
+
+# playwright 임시 파일
+.playwright-mcp/
+
+# 스크린샷 임시 파일
+viewport-*.png
