@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { formatKRW, formatDate } from '@/lib/helpers'
 import { StatusChangeButton } from './StatusChangeButton'
+import { SendEmailButton } from './SendEmailButton'
 import type { Invoice, InvoiceStatus } from '@/types/invoice'
 interface InvoiceListTableProps {
   invoices: Invoice[]
@@ -84,9 +85,10 @@ export function InvoiceListTable({ invoices, searchParams }: InvoiceListTablePro
             <TableHead className="hidden xl:table-cell">이메일</TableHead>
             <TableHead className="hidden sm:table-cell">발행일</TableHead>
             <TableHead className="hidden md:table-cell">유효기간</TableHead>
+            <TableHead className="hidden lg:table-cell">열람</TableHead>
             <TableHead className="text-right">합계금액</TableHead>
             <TableHead>상태</TableHead>
-            <TableHead className="w-[80px]">액션</TableHead>
+            <TableHead className="w-[100px]">액션</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -118,6 +120,15 @@ export function InvoiceListTable({ invoices, searchParams }: InvoiceListTablePro
                 <TableCell className="hidden md:table-cell">
                   {invoice.valid_until ? formatDate(invoice.valid_until) : '-'}
                 </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {invoice.viewed_at ? (
+                    <span className="text-sm text-muted-foreground">
+                      {formatDate(invoice.viewed_at)}
+                    </span>
+                  ) : (
+                    <Badge variant="outline">미열람</Badge>
+                  )}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {formatKRW(invoice.total_amount)}
                 </TableCell>
@@ -127,11 +138,17 @@ export function InvoiceListTable({ invoices, searchParams }: InvoiceListTablePro
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <StatusChangeButton
-                    invoiceId={invoice.id}
-                    currentStatus={currentStatus}
-                    onStatusChange={(newStatus) => handleStatusChange(invoice.id, newStatus)}
-                  />
+                  <div className="flex items-center gap-1">
+                    <StatusChangeButton
+                      invoiceId={invoice.id}
+                      currentStatus={currentStatus}
+                      onStatusChange={(newStatus) => handleStatusChange(invoice.id, newStatus)}
+                    />
+                    <SendEmailButton
+                      invoiceId={invoice.id}
+                      clientEmail={invoice.client_email}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             )
