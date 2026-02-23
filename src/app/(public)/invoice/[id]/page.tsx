@@ -49,5 +49,14 @@ export default async function InvoicePage({ params }: InvoicePageProps) {
 
   if (!invoice) notFound()
 
+  // 최초 열람 시 열람일시 기록 (viewed_at 없는 경우에만)
+  // 비동기 처리 — 실패해도 페이지 렌더링에 영향 없음
+  if (!invoice.viewed_at) {
+    void fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoice/${id}/view`, {
+      method: 'POST',
+      cache: 'no-store',
+    }).catch(() => {})
+  }
+
   return <InvoiceView invoice={invoice} />
 }
