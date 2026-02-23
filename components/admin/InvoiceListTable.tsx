@@ -49,7 +49,9 @@ export function InvoiceListTable({ invoices, searchParams }: InvoiceListTablePro
       const matchesQuery =
         !q ||
         inv.invoice_number.toLowerCase().includes(q) ||
-        inv.client_name.toLowerCase().includes(q)
+        inv.client_name.toLowerCase().includes(q) ||
+        (inv.project_name?.toLowerCase().includes(q) ?? false) ||
+        (inv.client_email?.toLowerCase().includes(q) ?? false)
 
       const matchesStatus = !status || inv.status === status
 
@@ -78,6 +80,8 @@ export function InvoiceListTable({ invoices, searchParams }: InvoiceListTablePro
           <TableRow>
             <TableHead>견적번호</TableHead>
             <TableHead>고객명</TableHead>
+            <TableHead className="hidden lg:table-cell">프로젝트명</TableHead>
+            <TableHead className="hidden xl:table-cell">이메일</TableHead>
             <TableHead className="hidden sm:table-cell">발행일</TableHead>
             <TableHead className="hidden md:table-cell">유효기간</TableHead>
             <TableHead className="text-right">합계금액</TableHead>
@@ -102,6 +106,12 @@ export function InvoiceListTable({ invoices, searchParams }: InvoiceListTablePro
                   </a>
                 </TableCell>
                 <TableCell>{invoice.client_name}</TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {invoice.project_name ?? '-'}
+                </TableCell>
+                <TableCell className="hidden xl:table-cell">
+                  {invoice.client_email ?? '-'}
+                </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   {invoice.issue_date ? formatDate(invoice.issue_date) : '-'}
                 </TableCell>
