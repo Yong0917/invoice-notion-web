@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getInvoiceById } from '@/lib/notion'
+import { getInvoiceById, markInvoiceViewed } from '@/lib/notion'
 import { InvoiceView } from '@/components/invoice/InvoiceView'
 
 // ─── 페이지 Props 타입 ────────────────────────────────────────────────
@@ -50,12 +50,14 @@ export default async function InvoicePage({ params }: InvoicePageProps) {
   if (!invoice) notFound()
 
   // 최초 열람 시 열람일시 기록 (viewed_at 없는 경우에만)
-  // 비동기 처리 — 실패해도 페이지 렌더링에 영향 없음
+  // Vercel 서버리스 환경에서 void fetch()는 응답 전송 후 컨텍스트 종료로 유실될 수 있어
+  // markInvoiceViewed를 직접 호출하고 await로 완료를 보장합니다.
   if (!invoice.viewed_at) {
-    void fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/invoice/${id}/view`, {
-      method: 'POST',
-      cache: 'no-store',
-    }).catch(() => {})
+    try {
+      await markInvoiceViewed(id)
+    } catch {
+      // 열람 기록 실패해도 페이지 렌더링에는 영향 없음
+    }
   }
 
   return <InvoiceView invoice={invoice} />

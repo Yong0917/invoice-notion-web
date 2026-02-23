@@ -230,7 +230,7 @@ export async function markInvoiceViewed(pageId: string): Promise<void> {
   await client.pages.update({
     page_id: pageId,
     properties: {
-      '열람일시': { date: { start: new Date().toISOString().split('T')[0] } },
+      '열람일시': { date: { start: new Date().toISOString() } },
     },
   })
 }
