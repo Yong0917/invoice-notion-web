@@ -10,7 +10,8 @@
 
 ## 로드맵 파일 구조
 
-- `docs/ROADMAP.md` — 고도화 로드맵 (Phase 5~7), v2.2 기준 (2026-02-23 업데이트)
+- `docs/ROADMAP.md` — UI 개선 로드맵 v1.0 (2026-02-23, Phase A~D: 홈 버튼, 정렬, 새로고침, 페이지네이션)
+- `docs/roadmaps/ROADMAP_v2.md` — 고도화 로드맵 (Phase 5~7), v2.5 기준 (2026-02-23 업데이트)
 - `docs/roadmaps/ROADMAP_v1.md` — MVP 로드맵 (Phase 0~4), v1.5 완료 기준
 - `docs/PRD.md` — 원본 제품 요구사항 문서
 
@@ -75,3 +76,15 @@
 - Q10: 웹 UI에서 견적서 신규 생성 기능 필요 여부
 - Q11: Vercel Pro 플랜 필요 여부
 - Q12: 거절된 견적서 클라이언트 열람 허용 여부 (MVP에서 이월)
+
+## shadcn/ui 설치 현황
+
+- Pagination 컴포넌트 미설치 확인 (2026-02-23). 페이지네이션 구현 전 `npx shadcn@latest add pagination` 필요
+- `components/ui/` 디렉토리에서 설치 여부 사전 확인 후 ROADMAP 작성 권장
+
+## UI 개선 로드맵 패턴 (docs/ROADMAP.md)
+
+- 소규모 UX 픽스는 Phase A/B/C/D 알파벳 네이밍으로 분리 (숫자 Phase와 구분)
+- `router.refresh()` + `useTransition`으로 서버 컴포넌트 새로고침 구현 (Next.js 공식 권장 방식)
+- 클라이언트 사이드 페이지네이션: `useSearchParams`로 URL `?page=N` 연동, 필터 변경 시 `page` 파라미터 제거로 1페이지 리셋
+- `StatusChangeButton` 정렬 이슈: `h-auto p-0` vs `h-8 w-8` 혼재 → 명시적 `h-8` 통일로 해결
