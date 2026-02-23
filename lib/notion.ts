@@ -124,6 +124,8 @@ function mapToInvoice(page: PageObjectResponse, items: InvoiceItem[]): Invoice {
     payment_terms: extractText(props, '결제 조건') || undefined,
     notes: extractText(props, '비고') || undefined,
     tax_invoice_required: extractCheckbox(props, '세금계산서 발행 여부'),
+    // Phase 6 확장 필드
+    viewed_at: extractDate(props, '열람일시') || undefined,
   }
 }
 
@@ -215,6 +217,20 @@ export async function updateInvoiceStatus(pageId: string, status: InvoiceStatus)
     page_id: pageId,
     properties: {
       '상태': { select: { name: status } },
+    },
+  })
+}
+
+/**
+ * 견적서 최초 열람 시 열람일시를 기록합니다. (클라이언트 페이지용)
+ * @param pageId 노션 페이지 ID
+ */
+export async function markInvoiceViewed(pageId: string): Promise<void> {
+  const client = getNotionClient()
+  await client.pages.update({
+    page_id: pageId,
+    properties: {
+      '열람일시': { date: { start: new Date().toISOString().split('T')[0] } },
     },
   })
 }

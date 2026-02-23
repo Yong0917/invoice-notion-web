@@ -67,6 +67,9 @@ export interface Invoice {
   notes?: string
   /** 세금계산서 발행 여부 */
   tax_invoice_required?: boolean
+  // ── Phase 6 확장 필드 ─────────────────────────────────────────────
+  /** 최초 열람일시 (ISO 8601 형식: YYYY-MM-DD) */
+  viewed_at?: string
 }
 
 // ─── 발행자(Sender) ───────────────────────────────────────────────────
