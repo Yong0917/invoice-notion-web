@@ -5,12 +5,14 @@ import { InvoiceFilters } from '@/components/admin/InvoiceFilters'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FileText, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { RefreshButton } from '@/components/admin/RefreshButton'
 import type { InvoiceStatus } from '@/types/invoice'
 
 interface AdminPageProps {
   searchParams: Promise<{
     q?: string
     status?: string
+    page?: string
   }>
 }
 
@@ -41,11 +43,14 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">견적서 관리</h1>
-        <p className="text-sm text-muted-foreground">
-          총 {counts.total}건의 견적서가 있습니다.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">견적서 관리</h1>
+          <p className="text-sm text-muted-foreground">
+            총 {counts.total}건의 견적서가 있습니다.
+          </p>
+        </div>
+        <RefreshButton />
       </div>
 
       {/* 상태 요약 카드 */}
@@ -79,6 +84,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         searchParams={{
           q: params.q,
           status: params.status as InvoiceStatus | undefined,
+          page: params.page,
         }}
       />
     </div>
