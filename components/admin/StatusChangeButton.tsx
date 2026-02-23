@@ -65,7 +65,7 @@ export function StatusChangeButton({
         <Button
           variant="ghost"
           size="sm"
-          className="h-auto gap-1 p-0 hover:bg-transparent"
+          className="h-8 gap-1 px-1 hover:bg-transparent"
           disabled={isLoading}
         >
           <Badge variant={STATUS_VARIANT[currentStatus]}>

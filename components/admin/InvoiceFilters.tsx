@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -23,11 +23,18 @@ export function InvoiceFilters() {
 
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
   const debouncedQuery = useDebounce(query, 300)
+  const isFirstRender = useRef(true)
 
   const currentStatus = (searchParams.get('status') ?? 'all') as StatusFilter
 
   // 검색어 디바운스 처리 후 URL 업데이트
+  // 최초 마운트 시에는 실행하지 않음 (페이지네이션 파라미터 보존)
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+
     const params = new URLSearchParams(searchParams.toString())
 
     if (debouncedQuery) {
@@ -35,6 +42,7 @@ export function InvoiceFilters() {
     } else {
       params.delete('q')
     }
+    params.delete('page')
 
     router.push(`/admin?${params.toString()}`)
   }, [debouncedQuery]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -47,6 +55,7 @@ export function InvoiceFilters() {
     } else {
       params.set('status', status)
     }
+    params.delete('page')
 
     router.push(`/admin?${params.toString()}`)
   }
