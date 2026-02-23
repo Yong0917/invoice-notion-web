@@ -20,6 +20,12 @@ export interface InvoiceItem {
   unit_price: number
   /** 공급가액 = quantity * unit_price */
   amount: number
+  /** 단위 (예: 식, 개, 시간, 일, 월, 건, 세트) */
+  unit?: string
+  /** 항목별 비고 */
+  item_notes?: string
+  /** 카테고리 (예: 개발, 디자인, 기획, 컨설팅, 기타) */
+  category?: string
 }
 
 // ─── 견적서 ───────────────────────────────────────────────────────────
@@ -40,6 +46,27 @@ export interface Invoice {
   total_amount: number
   /** 견적서 처리 상태 */
   status: InvoiceStatus
+  // ── Phase 5.5 확장 필드 ─────────────────────────────────────────────
+  /** 고객 회사명 */
+  client_company?: string
+  /** 고객 담당자명 */
+  client_contact_name?: string
+  /** 클라이언트 이메일 */
+  client_email?: string
+  /** 클라이언트 연락처 */
+  client_phone?: string
+  /** 프로젝트명 */
+  project_name?: string
+  /** 납기일 (ISO 8601 형식: YYYY-MM-DD) */
+  delivery_date?: string
+  /** 공급가액 (부가세 제외 합계) */
+  supply_amount?: number
+  /** 결제 조건 */
+  payment_terms?: string
+  /** 비고 */
+  notes?: string
+  /** 세금계산서 발행 여부 */
+  tax_invoice_required?: boolean
 }
 
 // ─── 발행자(Sender) ───────────────────────────────────────────────────
@@ -64,14 +91,3 @@ export interface Sender {
   account_holder: string
 }
 
-// ─── 노션 프로퍼티 매핑용 타입 ───────────────────────────────────────
-// 노션 API 응답을 Invoice 타입으로 변환할 때 사용하는 중간 타입
-// TODO: @notionhq/client 설치 후 실제 노션 프로퍼티 타입으로 교체
-export interface NotionInvoiceProperties {
-  invoice_number: string
-  client_name: string
-  issue_date: string
-  valid_until: string
-  total_amount: number
-  status: InvoiceStatus
-}

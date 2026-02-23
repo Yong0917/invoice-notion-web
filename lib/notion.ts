@@ -75,6 +75,18 @@ function extractEmail(props: NotionProperties, key: string): string {
   return prop.email ?? ''
 }
 
+function extractCheckbox(props: NotionProperties, key: string): boolean {
+  const prop = props[key]
+  if (prop?.type !== 'checkbox') return false
+  return prop.checkbox ?? false
+}
+
+function extractPhone(props: NotionProperties, key: string): string {
+  const prop = props[key]
+  if (prop?.type !== 'phone_number') return ''
+  return prop.phone_number ?? ''
+}
+
 // ─── 노션 페이지 → 도메인 타입 변환 ──────────────────────────────────
 function mapToInvoiceItem(page: PageObjectResponse): InvoiceItem {
   const props = page.properties
@@ -84,6 +96,9 @@ function mapToInvoiceItem(page: PageObjectResponse): InvoiceItem {
     quantity: extractNumber(props, '수량'),
     unit_price: extractNumber(props, '단가'),
     amount: extractFormulaNumber(props, '공급가액'),
+    unit: extractSelect(props, '단위') || undefined,
+    item_notes: extractText(props, '비고') || undefined,
+    category: extractSelect(props, '카테고리') || undefined,
   }
 }
 
@@ -98,6 +113,17 @@ function mapToInvoice(page: PageObjectResponse, items: InvoiceItem[]): Invoice {
     total_amount: extractNumber(props, '합계금액'),
     status: extractSelect(props, '상태') as InvoiceStatus,
     items,
+    // Phase 5.5 확장 필드
+    client_company: extractText(props, '고객 회사명') || undefined,
+    client_contact_name: extractText(props, '고객 담당자명') || undefined,
+    project_name: extractText(props, '프로젝트명') || undefined,
+    delivery_date: extractDate(props, '납기일') || undefined,
+    supply_amount: extractNumber(props, '공급가액') || undefined,
+    client_email: extractEmail(props, '클라이언트 이메일') || undefined,
+    client_phone: extractPhone(props, '클라이언트 연락처') || undefined,
+    payment_terms: extractText(props, '결제 조건') || undefined,
+    notes: extractText(props, '비고') || undefined,
+    tax_invoice_required: extractCheckbox(props, '세금계산서 발행 여부'),
   }
 }
 
