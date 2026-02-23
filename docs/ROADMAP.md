@@ -1,7 +1,7 @@
 # 노션 기반 견적서 관리 시스템 고도화 로드맵
 
 > 마지막 업데이트: 2026-02-23
-> 버전: v2.3
+> 버전: v2.4
 > 기준 문서: docs/roadmaps/ROADMAP_v1.md (MVP 완료 기준)
 
 ---
@@ -25,6 +25,7 @@ MVP(Phase 0~4) 완료를 기준으로, 본 문서는 관리 기능, 자동화, �
 | Phase 4 | 배포 및 운영 준비 | 2026-02-22 | `next.config.ts` 최적화, 프로덕션 빌드, E2E 테스트 통과 |
 | Phase 5 | 관리 기능 | 2026-02-22 | `auth.ts`, `AdminHeader`, `InvoiceListTable`, `StatusChangeButton`, `/api/admin/invoice/[id]/status` |
 | Phase 5.5 | 데이터 모델 확장 | 2026-02-23 | `types/invoice.ts` 신규 필드 13개, `lib/notion.ts` 헬퍼 2개 추가(`extractCheckbox`, `extractPhone`), UI 컴포넌트 5종 수정 |
+| Phase 6 | 자동화 | 2026-02-23 | Resend 이메일 발송, Vercel Cron Job 만료 알림, 열람 트래킹 |
 
 ### 현재 라우트 구조
 
@@ -83,9 +84,9 @@ ADMIN_PASSWORD_HASH=\$2b\$12\$...   # bcrypt 해시 ($는 \$로 이스케이프)
 ## 성공 지표 (고도화 목표)
 
 - [x] 관리자가 웹 UI에서 견적서 목록 조회, 상태 변경, 검색이 가능하다
-- [ ] 견적서 발행 시 클라이언트에게 이메일이 자동으로 발송된다
-- [ ] 유효기간 만료 D-3, D-1 시점에 알림 이메일이 자동 발송된다
-- [ ] 클라이언트가 견적서를 열람했는지 관리자가 확인할 수 있다
+- [x] 견적서 발행 시 클라이언트에게 이메일이 자동으로 발송된다
+- [x] 유효기간 만료 D-3, D-1 시점에 알림 이메일이 자동 발송된다
+- [x] 클라이언트가 견적서를 열람했는지 관리자가 확인할 수 있다
 - [ ] 관리자가 여러 PDF 레이아웃 중 하나를 선택할 수 있다
 
 ---
@@ -746,3 +747,4 @@ Phase 7 (고급 기능) — 각 세부 기능은 독립적으로 착수 가능
 | v2.1 | 2026-02-22 | Phase 5 완료 반영: 라우트 구조 업데이트 (route group 도입), 환경변수 이스케이프 주의사항 추가, 태스크 완료 체크 |
 | v2.2 | 2026-02-23 | Phase 5.5 추가: 데이터 모델 확장 (견적서 DB 10개 컬럼, 견적항목 DB 3개 컬럼, TypeScript 타입 확장, UI 컴포넌트 5종 수정). Phase 6 데이터 모델 섹션에서 client_email 중복 제거. 전체 일정 요약 및 기술적 의존성 업데이트 |
 | v2.3 | 2026-02-23 | Phase 5.5 완료 반영: 5.5-1~5.5-8 전 태스크 완료. InvoicePDF에서 `item_notes`·`tax_invoice_required` PDF 표시는 미구현으로 주석 처리. 완료 현황 테이블 및 전체 일정 요약 업데이트 |
+| v2.4 | 2026-02-23 | Phase 6 완료 반영: Resend 이메일 발송(`lib/email.ts`, 이메일 템플릿 2종, send-email API), Vercel Cron Job(`vercel.json`, expiry-reminder), 열람 트래킹(`markInvoiceViewed`, view API, invoice 페이지 연동), InvoiceListTable 열람 컬럼 추가 |
