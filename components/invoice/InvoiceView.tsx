@@ -15,8 +15,11 @@ export function InvoiceView({ invoice }: InvoiceViewProps) {
         <PDFDownloadButton invoiceId={invoice.id} invoiceNumber={invoice.invoice_number} />
       </div>
       <InvoiceHeader invoice={invoice} />
-      <InvoiceItemsTable items={invoice.items} totalAmount={invoice.total_amount} />
-      <InvoiceSummary totalAmount={invoice.total_amount} />
+      <InvoiceItemsTable items={invoice.items} />
+      {/* 테이블과 공급가액 섹션 사이 추가 간격 */}
+      <div className="mt-4">
+        <InvoiceSummary invoice={invoice} />
+      </div>
     </div>
   )
 }
